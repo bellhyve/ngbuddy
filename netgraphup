@@ -1,0 +1,25 @@
+#!/bin/sh
+. /etc/rc.subr
+
+load_rc_config "$netgraph_host"
+: ${netgraph_host_enable:="NO"}
+: ${netgraph_host_bridge:="ngbr0"}
+: ${netgraph_host_if:="nghost0"}
+: ${netgraph_host_extif:=""}
+
+echo $netgraph_host_enable | grep -iq 'yes' || exit
+
+kldload -nq ng_ether ng_bridge
+
+ngctl mkpeer eiface ether ether
+ngctl name ngeth0: $netgraph_host_if
+ifconfig ngeth0 name $netgraph_host_if up
+ngctl mkpeer $netgraph_host_if: bridge ether link0
+ngctl name $netgraph_host_if:ether $netgraph_host_bridge
+
+if [ -n "$netgraph_host_extif" ]; then
+	ngctl msg $netgraph_host_extif: setpromisc 1
+	ngctl msg $netgraph_host_extif: setautosrc 0
+	ngctl connect $netgraph_host_extif: $netgraph_host_bridge: lower link1
+	ngctl connect $netgraph_host_extif: $netgraph_host_bridge: upper link2
+fi
