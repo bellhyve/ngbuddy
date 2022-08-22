@@ -1,0 +1,107 @@
+#!/bin/sh
+. /etc/rc.subr
+
+load_rc_config "$ngup"
+: ${ngup_private_enable:="$ngup_enable"}
+: ${ngup_private_bridge:="private"}
+: ${ngup_private_list:="$ngup_list"}
+: ${ngup_public_enable:=""}
+: ${ngup_public_bridge:="public"}
+: ${ngup_public_list:="$ngup_list"}
+
+case $ngup_private_enable in
+	[yY][eE][sS])	: ${ngup_private_if:="nghost0"} ;;
+	[nN][oO])	ngup_private_if="" ;;
+	*)		: ${ngup_private_if:="$ngup_private_enable"} ;;
+esac
+
+case $ngup_public_enable in
+	[yY][eE][sS])	: ${ngup_public_if:=`ifconfig -lu|sed 's- .*--'`} ;;
+	[nN][oO])	ngup_public_if="" ;;
+	*)		: ${ngup_public_if:="$ngup_public_enable"} ;;
+esac
+
+#echo 1 $ngup_enable 
+#echo 2 $ngup_private_enable 
+#echo 3 $ngup_private_bridge 
+#echo 4 $ngup_public_enable 
+#echo 5 $ngup_public_bridge 
+#echo 6 $ngup_public_if 
+#echo 7 $ngup_list
+#echo 8 $ngup_public_list
+#echo 9 $ngup_private_list
+
+linkpp(){
+	LNUM=$((LNUM+1))
+}
+
+ng_init() {
+	kldload -nq ng_ether ng_bridge
+	#LNUM=`ngctl list -l|awk -F'.*link| ' 'BEGIN{x=0}/link/{if($2>x)x=$2}END{print x}'`
+	LNUM=`ngctl list -l|awk -F'.*link| ' '/link/{if($2>x)x=$2}END{print x}'`
+	if [ -n "$LNUM" ]; then
+		linkpp
+	else
+		LNUM=0
+	fi
+}
+
+
+ng_private() {
+	ngctl mkpeer eiface ether ether
+	ngctl name ngeth0: $ngup_private_if
+	ifconfig ngeth0 name $ngup_private_if up > /dev/null
+	ngctl mkpeer $ngup_private_if: bridge ether link${LNUM}; linkpp
+	ngctl name $ngup_private_if:ether $ngup_private_bridge
+}
+
+ng_public() {
+	ngctl msg $ngup_public_if: setpromisc 1
+	ngctl msg $ngup_public_if: setautosrc 0
+	ngctl mkpeer $ngup_public_if: bridge lower link${LNUM}; linkpp
+	ngctl name  $ngup_public_if:lower $ngup_public_bridge
+	ngctl connect $ngup_public_if: $ngup_public_bridge: upper link${LNUM}; linkpp
+}
+
+ng_addif() {
+	bridge=$1
+	ifname=$2
+	ifconfig $ifname > /dev/null 2>&1 && return
+	ngctl mkpeer $bridge: eiface link${LNUM} ether
+	ngif=`ngctl show -n $bridge:link${LNUM} |awk '{print $2}'`; linkpp
+	ngctl name $ngif: $ifname
+	ifconfig $ngif name $ifname >/dev/null
+}
+
+ng_addiflist() {
+	for newif in $2; do
+		ng_addif $1 $newif
+	done
+}
+
+ng_start() {
+	ng_init
+	if [ -n "$ngup_private_if" ]; then
+		ng_private
+		ng_addiflist "$ngup_private_bridge" "$ngup_private_list"
+	fi
+	if [ -n "$ngup_public_if" ]; then
+		ng_public
+		ng_addiflist "$ngup_public_bridge" "$ngup_public_list"
+	fi
+}
+
+ng_stop() {
+	ngctl list |\
+	awk '{print $2}'|\
+	xargs -tn1 -I% ngctl shutdown %: 2>/dev/null
+}
+
+
+case $1 in
+	start)	ng_start ;;
+	stop)	ng_stop ;;
+	restart)ng_stop; ng_start ;;
+esac
+
+ngctl dot | dot -T png -o /opt/Torrents/netgraph.png; chown djbell:djbell /opt/Torrents/netgraph.png

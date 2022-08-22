@@ -1,56 +1,75 @@
 ## Netgraph Buddy
 
-These scripts attempt to illustrate the _minimum_ required to get a netgraph bridge & nodes working for bhyve and VNET jails in FreeBSD. Such a tool is useful especially if your hosts want to network VMs and jails together, and is especially interesting now that we have solid netgraph support in bhyve and some support in the latest vm-bhyve 1.5 release.
+These scripts attempt to illustrate a simple netgraph bridge & nodes working for bhyve and VNET jails in FreeBSD. Such a tool is useful especially if your hosts want to network VMs and jails together, and is especially interesting now that we have solid netgraph support in bhyve and some support in the latest vm-bhyve 1.5 release.
 
 
-**Setup for a private network**
+**Create a private Netgraph bridge with the interface nghost0**
 
-`sysrc netgraph_host_enable=YES`
+Or: `sysrc ngup_private_enable=YES`
+
+(Synonym: `sysrc ngup_enable=YES`)
 
 
-**Optionally bridge to your physical network on ix0**
+**Create a public Netgraph bridge to your physical network on ix0**
 
-`sysrc netgraph_host_extif="ix0"`
+`sysrc ngup_public_enable=ix0`
 
-**Create interface nghost0 and bridge ngbr0**
 
-`./netgraphup`
+**Add some interfaces for vnet jails**
 
-**Optionally add additional interfaces, e.g., for jails (not needed for VMs)**
+`sysrc ngup_private_list="jail1 jail2 jail3"`
 
-`./ngaddif one0`
+`sysrc ngup_public_list="jail4 jail5"`
 
-`./ngaddif two0`
+Note: Not needed for bhyve VMs.
 
-`./ngaddif three0`
+
+**Go bananas**
+
+`./ngup start`
+
+You can also `./ngup restart` to clear Netgraph and start over.
+
+
+## Defaults
+
+You can override the following defaults.
+
+`ngup_private_bridge="private"`
+
+`ngup_private_if="nghost0"`
+
+`ngup_public_bridge="public"`
+
+`ngup_public_if="[DETECTED/GUESSED]"`
+
 
 ## Working with vm-bhyve
 
-vm-bhyve 1.5+ requiredd. Using our default bridge name (ngbr0), something like these commands will work:
+vm-bhyve 1.5+ requiredd. Using our default bridge name (nghost0), something like these commands will work:
 
-`sysrc -f /vm/.config/system.conf switch_list+=ngbr0`
+`sysrc -f /vm/.config/system.conf switch_list+=private`
 
-`sysrc -f /vm/.config/system.conf type_ngbr0=netgraph`
+`sysrc -f /vm/.config/system.conf type_private=netgraph`
 
 And then, define the switch in your VM configs as follows:
 
-`network0_switch="ngbr0"`
+`network0_switch="nghost0"`
+
 
 ## Working with jail.conf
 
-Make an interface:
-
-`./ngaddif jail0`
-
-Add these lines do your jail's configuration:
+Use the ngup_private_list and/or ngup_public_list variables and add these lines do your jail configurations editing (jail0 with the correct values):
 
 `vnet.interface = "jail0";`
 
-`exec.prestop = "ifconfig jail0 -vnet jail_name";`
+`exec.prestop = "ifconfig jail0 -vnet $name";`
+
 
 ## Goals
 
-I'd like to get this script to the point that it can relatively safely build up, expand, and tear down a bridge or three with a concise bit of rc.conf and a `service ngbuddy start/stop`.
+I'd like to get this script to the point that it can relatively safely build up, expand, and tear down a bridge or three with a concise bit of rc.conf and `service ngup start/stop`.
+
 
 ## FAQ
 
@@ -58,16 +77,14 @@ I'd like to get this script to the point that it can relatively safely build up,
 
 You bet. You can even `ifconfig bridge0 addm nghost0` to link your netgraph stuff to if_bridge stuff, which is handy for migration.
 
-**The ngaddif script is dumb and I want something that helps you create & tear down jail interfaces from jail.conf.**
 
-See `/usr/share/examples/jails/jng` for a much more robust tool for jails.
+**Is there a tool for creating/tearing down jail interfaces on the fly?**
 
-**I made an interface I don't want.**
+See `/usr/share/examples/jails/jng` is robust and has lots of options.
 
-Mind the final colon:
-
-`ngctl shutdown loser0:`
 
 **How do I make a PNG netgraph map?**
+
+With the graphviz package:
 
 `ngctl dot | dot -T png -o map.png`
