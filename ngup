@@ -69,6 +69,23 @@ ng_addiflist() {
 	done
 }
 
+ng_add() {
+	ifnames="$1"
+	bridgename="$2"
+	case $bridgename in
+		private)bridge="$ngup_private_bridge" ;;
+		public)	bridge="$ngup_public_bridge" ;;
+		"")	if [ -n "$ngup_public_bridge" ]; then 
+				bridge="$ngup_public_bridge"
+			else
+				bridge="$ngup_private_bridge"
+			fi ;;
+		*)	exit ;;	# Extend to custom bridges? 
+	esac
+	ng_init
+	ng_addiflist "$bridge" "$ifnames"
+}
+
 ng_start() {
 	ng_init
 	if [ -n "$ngup_private_if" ]; then
@@ -89,7 +106,8 @@ ng_stop() {
 
 
 case $1 in
+	add)	ng_add "$2" $3 ;;
+	restart)ng_stop; ng_start ;;
 	start)	ng_start ;;
 	stop)	ng_stop ;;
-	restart)ng_stop; ng_start ;;
 esac

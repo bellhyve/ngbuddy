@@ -31,6 +31,20 @@ Note: Not needed for bhyve VMs.
 You can also `./ngup restart` to clear Netgraph and start over.
 
 
+**Add more Netgraph interfaces**
+
+Add one or more interfaces in a quoted list.
+
+`./ngup add "here are some interfaces"`
+
+
+If you're using multiple bridges, add a 3rd parameter with "public" or "private:
+
+`./ngup add jail_inside private`
+
+`./ngup add jail_inside public`
+
+
 ## Defaults
 
 You can override the following defaults.
