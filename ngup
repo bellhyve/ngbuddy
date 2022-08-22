@@ -14,7 +14,12 @@ command="/usr/local/sbin/${name}"
 start_cmd="${name}_start"
 stop_cmd="${name}_stop"
 add_cmd="${name}_add"
-extra_commands="add"
+create_cmd="${name}_add"
+status_cmd="${name}_status"
+destroy_cmd="${name}_destroy"
+remove_cmd="${name}_destroy"
+drop_cmd="${name}_destroy"
+extra_commands="add drop destroy remove create"
 
 load_rc_config "$ngup"
 : ${ngup_private:=""}
@@ -45,7 +50,6 @@ linkpp(){
 
 ngup_init() {
 	kldload -nq ng_ether ng_bridge
-	#LNUM=`ngctl list -l|awk -F'.*link| ' 'BEGIN{x=0}/link/{if($2>x)x=$2}END{print x}'`
 	LNUM=`ngctl list -l|awk -F'.*link| ' '/link/{if($2>x)x=$2}END{print x}'`
 	if [ -n "$LNUM" ]; then
 		linkpp
@@ -102,9 +106,28 @@ ngup_add() {
 	esac
 	ngup_init
 	ngup_addiflist "$bridge" "$ifnames"
+	eval "sysrc ngup_${bridge}_list+=\"$ifnames\""
+}
+
+ngup_destroy() {
+        ifnames="$1"
+        bridgename="$2"
+        case $bridgename in
+                private)bridge="$ngup_private_bridge" ;;
+                public) bridge="$ngup_public_bridge" ;;
+                "")     if [ -n "$ngup_public_bridge" ]; then
+                                bridge="$ngup_public_bridge"
+                        else
+                                bridge="$ngup_private_bridge"
+                        fi ;;
+                *)      exit ;; # Extend to custom bridges?
+        esac
+	echo $ifnames|xargs -tn1 -I% ngctl shutdown %:
+        eval "sysrc ngup_${bridge}_list-=\"$ifnames\""
 }
 
 ngup_start() {
+	echo Starting $name.
 	ngup_init
 	if [ -n "$ngup_private_if" ]; then
 		ngup_private
@@ -114,12 +137,19 @@ ngup_start() {
 		ngup_public
 		ngup_addiflist "$ngup_public_bridge" "$ngup_public_list"
 	fi
+	echo Created $LNUM links.
+}
+
+ngup_status() {
+	ngup_init
+	echo Netgraph links: $LNUM
 }
 
 ngup_stop() {
 	ngctl list |\
 	awk '{print $2}'|\
 	xargs -tn1 -I% ngctl shutdown %: 2>/dev/null
+	echo Removed $LNUM links.
 }
 
 run_rc_command "$1" "$2" "$3"

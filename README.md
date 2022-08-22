@@ -1,10 +1,12 @@
 ## Netgraph Buddy
 
-These scripts attempt to illustrate a simple netgraph bridge & nodes working for bhyve and VNET jails in FreeBSD. Such a tool is useful especially if your hosts want to network VMs and jails together, and is especially interesting now that we have solid netgraph support in bhyve and some support in the latest vm-bhyve 1.5 release.
+It script creates a simple netgraph bridge & nodes working for bhyve and VNET jails in FreeBSD. Such a tool is useful especially if your hosts want to network VMs and jails together, and is especially interesting now that we have solid netgraph support in bhyve and some support in the latest vm-bhyve 1.5 release.
 
-**Enable with:**
+The **private** bridge creates an interface called *nghost0* intended for host-only networking or NAT networking. For example, you can run a DHCP server on nghost0 for your guests.
 
-`sysrc ngup_enable=YES`
+The **public** bridge binds to a real interface (the first available "up" interface by default).
+
+**Enable the service with:** `sysrc ngup_enable=YES`
 
 
 **Create a private Netgraph bridge with the interface nghost0**
@@ -18,35 +20,36 @@ These scripts attempt to illustrate a simple netgraph bridge & nodes working for
 
 `sysrc ngup_public=YES`
 
-
-**Add some interfaces for vnet jails**
-
-`sysrc ngup_private_list="jail1 jail2 jail3"`
-
-`sysrc ngup_public_list="jail4 jail5"`
-
-Note: Not needed for bhyve VMs.
+Or specify an interface with: `sysrc ngup_public=ix0`
 
 
 **Go bananas**
 
 `service ngup start`
 
-You can also `service ngup restart` to clear Netgraph and start over.
+Note that `service ngup stop/restart` destroys all Netgraph links and nodes!
 
 
-**Add more Netgraph interfaces**
+**Add some interfaces for vnet jails**
 
-Add one or more interfaces in a quoted list.
+If you only have one bridge: `service ngup create "jail1 jail2 jail3"`
 
-`service ngup add "here are some interfaces"`
+Note: You don't need these interfaces for Bhyve VMs.
+
+Remove them with `service ngup destroy jail_if_name`
 
 
 If you're using multiple bridges, add a 3rd parameter with "public" or "private:
 
-`service ngup add jail_inside private`
+`service ngup create jail_inside private`
 
-`service ngup add jail_inside public`
+`service ngup create jail_outside public`
+
+And drop them with:
+
+`service ngup destroy jail_inside private`
+
+`service ngup destroy jail_outside public`
 
 
 ## Defaults
@@ -59,7 +62,7 @@ You can override the following defaults.
 
 `ngup_public_bridge="public"`
 
-`ngup_public_if="[DETECTED/GUESSED]"`
+`ngup_public_if="[GUESSED]"`
 
 
 ## Working with vm-bhyve
@@ -79,11 +82,13 @@ For use with your public bridge, simply change the above names to "public," or u
 
 ## Working with jail.conf
 
-Use the **ngup_private_list** and/or **ngup_public_list** variables, e.g., `sysrc ngup_public_list+=jail0`. If the jail interface name and jail name match, you can simply use the **$name** variable in your jail configuration:
+Use `service ngup create ...` or the **ngup_private_list**/**ngup_public_list** rc variables to create your jail interfaces. I recommend you set the jail interface name and jail to name match, so you can simply use the **$name** variable in your jail configuration:
 
 `vnet.interface = "$name";`
 
 `exec.prestop = "ifconfig $name -vnet $name";`
+
+**TO-DO: Show full example.**
 
 
 ## FAQ
@@ -98,7 +103,7 @@ You bet. You can even `ifconfig bridge0 addm nghost0` to link your netgraph stuf
 `/usr/share/examples/jails/jng` is robust and has lots of options.
 
 
-**How do I make a PNG netgraph map?**
+**How do I make a PNG Netgraph map?**
 
 With the graphviz package:
 
