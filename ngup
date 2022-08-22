@@ -21,16 +21,6 @@ case $ngup_public_enable in
 	*)		: ${ngup_public_if:="$ngup_public_enable"} ;;
 esac
 
-#echo 1 $ngup_enable 
-#echo 2 $ngup_private_enable 
-#echo 3 $ngup_private_bridge 
-#echo 4 $ngup_public_enable 
-#echo 5 $ngup_public_bridge 
-#echo 6 $ngup_public_if 
-#echo 7 $ngup_list
-#echo 8 $ngup_public_list
-#echo 9 $ngup_private_list
-
 linkpp(){
 	LNUM=$((LNUM+1))
 }
@@ -103,5 +93,3 @@ case $1 in
 	stop)	ng_stop ;;
 	restart)ng_stop; ng_start ;;
 esac
-
-ngctl dot | dot -T png -o /opt/Torrents/netgraph.png; chown djbell:djbell /opt/Torrents/netgraph.png
