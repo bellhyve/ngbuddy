@@ -1,6 +1,6 @@
 ## Netgraph Buddy
 
-It script creates a simple netgraph bridge & nodes working for bhyve and VNET jails in FreeBSD. Such a tool is useful especially if your hosts want to network VMs and jails together, and is especially interesting now that we have solid netgraph support in bhyve and some support in the latest vm-bhyve 1.5 release.
+This script creates a simple netgraph bridge & nodes for bhyve and VNET jails in FreeBSD. Such a tool is useful especially if your hosts want to network VMs and jails together, and is especially handy now that we have solid netgraph support in bhyve and some support in the latest vm-bhyve 1.5 release.
 
 The **private** bridge creates an interface called *nghost0* intended for host-only networking or NAT networking. For example, you can run a DHCP server on nghost0 for your guests.
 
