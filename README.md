@@ -1,45 +1,64 @@
-## Netgraph Buddy
+## ngup ("Netgraph Buddy")
 
-This script creates a simple netgraph bridge & nodes for bhyve and VNET jails in FreeBSD. Such a tool is useful especially if your hosts want to network VMs and jails together, and is especially handy now that we have solid netgraph support in bhyve and some support in the latest vm-bhyve 1.5 release.
+An rc.d script for managing netgraph networks in mixed vm+jail environments.
 
-The **private** bridge creates an interface called *nghost0* intended for host-only networking or NAT networking. For example, you can run a DHCP server on nghost0 for your guests.
+Features:
+* Create "public" bridges, linked to a real interface.
+* Create "private" bridges, linekd to a Netgraph eiface node.
+* Simplify creating and destroying additional eiface nodes, e.g., for use in VNET jails.
+* Configure vm-bhyve 1.5+ for use with the bridges.
 
-The **public** bridge binds to a real interface (the first available "up" interface by default).
+This tool is inspired by [jng](https://github.com/freebsd/freebsd-src/blob/main/share/examples/jails/jng) and [the Netgraph article by Klara Systems](https://klarasystems.com/articles/using-netgraph-for-freebsds-bhyve-networking/).
 
-**Enable the service with:** `sysrc ngup_enable=YES`
+By default, "service ngup enable" will generate a "public" and "private"
+netgraph bridge. "public" will attach to the interface associated with the
+default route, while "private" links to a new netgraph eiface called "nghost0"
+for running private network services, such as dhcpd.
 
+## Quick Start
 
-**Create a private Netgraph bridge with the interface nghost0**
+  1. Install the script in /usr/local/etc/rc.d/ngup and make it executable.
+  2. `service ngup enable`
+  3. `service ngup start`
+  4. `service ngup vmconf`
+  5. `service ngup create pubjail`
+  6. `service ngup create privjail`
+  7. Configure your jails and vms and netgraph away!
 
-`sysrc ngup_private=YES`
+## More Details
 
-(This is the default if no other option is given.)
+To clarify the above terminology, a "public" bridge connected to a host's existing interface such as the LAN, and a "private" isolated bridge adds an eiface that can be used for a host-only DHCP/DNS server with otubound NAT.
 
+Custom bridge names can be added with *ngup_bridge_name_if*. If the interface exists we'll bridge to it ("public"). If the interface doesn't exist, we'll create an eiface with that name along with the bridge ("private").
 
-**Create a public Netgraph bridge to your physical network**
+These bridges can be added to vm-bhyve 1.5+ using `service ngup vmconf`.
 
-`sysrc ngup_public=YES`
+Link an eiface, e.g., for jails, using "service ngup create jail_name bridge_name". Drop an eiface using "service ngup destroy jail_name bridge_name". If "bridge_name" is omitted, create/destroy will try the "ngup_bridge_default" option ("public" in the default setup).
 
-Or specify an interface with: `sysrc ngup_public=ix0`
+If your jail configurations match the jail name, interface name, directory, and starting host name, you can use jail variables to very easily create and clone them. Part of the jail configuration can look like this, with only the first line different between jails:
 
+```
+jail_pub_1 {
+    host.hostname = $name;
+    path ="/jail/$name";
+    vnet.interface = "$name";
+    exec.prestop = "ifconfig $name -vnet $name";
+}
+```
 
-**Go bananas**
+To configure vm-bhyve with your ngup switches, run `service ngup vmconf` and ngup will back up your configuration file and will update your vm-bhyve "switch list" with your ngup bridges.
 
-`service ngup start`
+## Restarting
 
-Note that `service ngup stop/restart` destroys all Netgraph links and nodes!
+**Warning:** `service ngup stop/restart` destroys all Netgraph eifaces and bridges, including ones not created with ngup!
 
+## Further detail on ustomizing and extending ngup
 
-**Add some interfaces for vnet jails**
+The **public** bridge binds to a real interface (the first available "up" interface by default). Make another bridge binding to another interface with `ngup_bridge_name_if=real_if`, e.g., `sysrc ngup_voip_if=ix2`.
 
-If you only have one bridge: `service ngup create "jail1 jail2 jail3"`
+The **private** bridge creates an interface called *nghost0* intended for host-only networking or NAT networking. For example, you can run a DHCP & DNS server on nghost0 for your guests, and use _pf_ or _ipfw_ to NAT out. Make another private bridge by specifing the interface name to be created (one that does not already exist) with `ngup_bridge_name_if=eiface_name`, e.g., `sysrc ngup_devnet_if=dev0`.
 
-Note: You don't need these interfaces for Bhyve VMs.
-
-Remove them with `service ngup destroy jail_if_name`
-
-
-If you're using multiple bridges, add a 3rd parameter with "public" or "private:
+To add additional eifaces to the bridge, e.g., for use with jails, use `service ngup create`:
 
 `service ngup create jail_inside private`
 
@@ -52,59 +71,25 @@ And drop them with:
 `service ngup destroy jail_outside public`
 
 
-## Defaults
-
-You can override the following defaults.
-
-`ngup_private_bridge="private"`
-
-`ngup_private_if="nghost0"`
-
-`ngup_public_bridge="public"`
-
-`ngup_public_if="[GUESSED]"`
-
-
-## Working with vm-bhyve
-
-vm-bhyve 1.5+ requiredd. Using our default private bridge name ("private"), something like these commands will work:
-
-`sysrc -f /vm/.config/system.conf switch_list+=private`
-
-`sysrc -f /vm/.config/system.conf type_private=netgraph`
-
-And then, define the switch in your VM configs as follows:
-
-`network0_switch="private"`
-
-For use with your public bridge, simply change the above names to "public," or use both.
-
-
-## Working with jail.conf
-
-Use `service ngup create ...` or the **ngup_private_list**/**ngup_public_list** rc variables to create your jail interfaces. I recommend you set the jail interface name and jail to name match, so you can simply use the **$name** variable in your jail configuration:
-
-`vnet.interface = "$name";`
-
-`exec.prestop = "ifconfig $name -vnet $name";`
-
-**TO-DO: Show full example.**
-
-
 ## FAQ
 
 **Can this coexist with my if_bridge (epair/tap) setup?**
 
-You bet. You can even `ifconfig bridge0 addm nghost0` to link your netgraph stuff to if_bridge stuff, which is handy for an in-place virtual jail migration.
+You bet; an if_bridge interface and eiface (Netgraph interface) can share a network through a bridge, including a physical or private network with DHCP. Try `ifconfig bridge0 addm nghost0` to link your "private" ngup interfaces to your if_bridge epairs/taps/etc. This is handy for an in-place virtual jail migration.
 
 
-**Is there a tool for creating/tearing down jail interfaces on the fly?**
+**Is there more mature tool for jails that takes care with MAC addresses and creates & destroys nodes when starting/stopping jails?**
 
-`/usr/share/examples/jails/jng` is robust and has lots of options.
+Check out `/usr/share/examples/jails/jng`, which is perfect for many situations.
 
 
-**How do I make a PNG Netgraph map?**
+**How do I make a PNG Netgraph map of my insane ngup configuration?**
 
-With the graphviz package:
+Use the graphviz package:
 
 `ngctl dot | dot -T png -o map.png`
+
+
+**Why does this file look like you've never used markdown before?**
+
+¯\_(ツ)_/¯
