@@ -1,64 +1,97 @@
 #!/bin/sh
 
+# ngup manages a simple netgraph setup for jail+vm environments
+#
 # PROVIDE: ngup
 # REQUIRE: SERVERS dmesg
 # BEFORE:  vm jail
-# KEYWORD:
 
 . /etc/rc.subr
 
 name="ngup"
 rcvar="ngup_enable"
 
+# By default, "service ngup enable" will generate a "public" and "private"
+# netgraph bridge. "public" will attach to the interface associated with the
+# default route, while "private" links to a new netgraph eiface called "nghost"
+# for running local network services, such as dhcpd. These bridges will be
+# added to vm-bhyve if available. vm-bhyve 1.5+ is required.
+#
+# Add an eiface for jails using "service ngup create jail_name", appending
+# "public" or "private" if both options are configured.
+#
+# Simply remove the ngup_if_private or ngup_if_public options if they're not
+# needed. The default is to set up a private bridge.
+#
+# Default and options, such as bridge and eiface names, can be overriden with
+# the rc.conf variables defined below. Note that this tool only creates up to
+# one public and private bridge, and is not a good production tool for servers
+# that need multiple bridges NICs or multiple virtual networks.
+
+
 command="/usr/local/sbin/${name}"
+enable_cmd="${name}_enable"
 start_cmd="${name}_start"
 stop_cmd="${name}_stop"
-add_cmd="${name}_add"
-create_cmd="${name}_add"
 status_cmd="${name}_status"
+create_cmd="${name}_create"
 destroy_cmd="${name}_destroy"
-remove_cmd="${name}_destroy"
-drop_cmd="${name}_destroy"
-extra_commands="add drop destroy remove create"
+extra_commands="create destroy"
 
 load_rc_config "$ngup"
-: ${ngup_private:=""}
 : ${ngup_private_bridge:="private"}
 : ${ngup_private_list:="$ngup_list"}
-: ${ngup_public:=""}
 : ${ngup_public_bridge:="public"}
 : ${ngup_public_list:="$ngup_list"}
 
-# If private or public isn't specified, default to private
-[ "$ngup_private$ngup_public" ] || ngup_private="$ngup_enable"
+# If private or public isn't specified, try a private bridge
+[ "$ngup_private_if$ngup_public_if" ] || ngup_private_if="nghost0"
 
-case $ngup_private in
-	[yY][eE][sS])	: ${ngup_private_if:="nghost0"} ;;
-	[nN][oO])	ngup_private_if="" ;;
-	*)		: ${ngup_private_if:="$ngup_private"} ;;
-esac
-
-case $ngup_public in
-	[yY][eE][sS])	: ${ngup_public_if:=`ifconfig -lu|sed 's- .*--'`} ;;
-	[nN][oO])	ngup_public_if="" ;;
-	*)		: ${ngup_public_if:="$ngup_public"} ;;
-esac
-
-linkpp(){
+# Count links
+linkpp() {
 	LNUM=$((LNUM+1))
 }
 
+# Bridge both the NIC containing the default gateway, create nghost0, and try
+# to configure vm-bhyve.
+ngup_enable() {
+	: ${ngup_public_if:="`netstat -rn|grep default|cut -wf4|tr . _`"}
+	: ${ngup_private_if:="nghost0"}
+	sysrc ngup_enable=YES
+	sysrc ngup_public_if="$ngup_public_if"
+	sysrc ngup_private_if="$ngup_private_if"
+	case "$vm_dir" in
+		zfs:*)	vm_dir="`echo "$vm_dir"|cut -d: -f2`"
+			vm_conf="`zfs get -H mountpoint "$vm_dir"|cut -wf3`" ;;
+		?*)	vm_conf="$vm_dir" ;;
+		*)	return ;;
+	esac
+	vm_conf="$vm_conf/.config/system.conf"
+	: ${ngup_private_bridge}="private"
+	: ${ngup_public_bridge}="public"
+	echo
+	echo $vm_conf:
+	bridges="$ngup_private_bridge $ngup_public_bridge"
+	sysrc -f "$vm_conf" switch_list+="$bridges"
+	for ngup_bridge in $bridges
+	do
+		sysrc -f "$vm_conf" type_$ngup_bridge=netgraph
+	done
+}
+
+# Make sure netgraph is loaded and count the links
 ngup_init() {
 	kldload -nq ng_ether ng_bridge
-	LNUM=`ngctl list -l|awk -F'.*link| ' '/link/{if($2>x)x=$2}END{print x}'`
-	if [ -n "$LNUM" ]; then
+	LNUM=`ngctl list -l|awk -F'.*link| ' '/link/{if($2>x||x=="")x=$2}END{print x}'`
+	if [ -n "$LNUM" ]
+	then
 		linkpp
 	else
 		LNUM=0
 	fi
 }
 
-
+# Enable a private bridge and attach a new eiface
 ngup_private() {
 	ngctl mkpeer eiface ether ether
 	ngctl name ngeth0: $ngup_private_if
@@ -67,6 +100,7 @@ ngup_private() {
 	ngctl name $ngup_private_if:ether $ngup_private_bridge
 }
 
+# Enable a public bridge and attach an existing NIC
 ngup_public() {
 	ngctl msg $ngup_public_if: setpromisc 1
 	ngctl msg $ngup_public_if: setautosrc 0
@@ -75,6 +109,7 @@ ngup_public() {
 	ngctl connect $ngup_public_if: $ngup_public_bridge: upper link${LNUM}; linkpp
 }
 
+# Attach a new eiface to the specified bridge
 ngup_addif() {
 	bridge=$1
 	ifname=$2
@@ -82,69 +117,79 @@ ngup_addif() {
 	ngctl mkpeer $bridge: eiface link${LNUM} ether
 	ngif=`ngctl show -n $bridge:link${LNUM} |awk '{print $2}'`; linkpp
 	ngctl name $ngif: $ifname
-	ifconfig $ngif name $ifname >/dev/null
+	ifconfig $ngif name $ifname # >/dev/null
 }
 
+# Attach new eifaces to the specified bridge
 ngup_addiflist() {
-	for newif in $2; do
+	bridge=$1
+	echo -n 'Creating nodes: '
+	for newif in $2
+	do
 		ngup_addif $1 $newif
 	done
 }
 
-ngup_add() {
+ngup_find_bridge() {
+	if [ -n "$ngup_public_if" ]
+	then
+		bridge="$ngup_public_bridge"
+	elif [ -n "$ngup_private_if" ]
+	then
+		bridge="$ngup_private_bridge"
+	else
+		echo No bridge configured.
+		exit 1
+	fi
+}
+
+# service ngup create: add the eiface to the specified (or only) bridge
+# WARNING: "Space delimiters" don't seem to work via run_rc_command
+ngup_create() {
 	ifnames="$1"
-	bridgename="$2"
-	case $bridgename in
-		private)bridge="$ngup_private_bridge" ;;
-		public)	bridge="$ngup_public_bridge" ;;
-		"")	if [ -n "$ngup_public_bridge" ]; then 
-				bridge="$ngup_public_bridge"
-			else
-				bridge="$ngup_private_bridge"
-			fi ;;
-		*)	exit ;;	# Extend to custom bridges? 
-	esac
+	bridge="$2"
+	[ -n "$bridge" ] || ngup_find_bridge
 	ngup_init
+	[ $LNUM = 0 ] && linkpp
 	ngup_addiflist "$bridge" "$ifnames"
-	eval "sysrc ngup_${bridge}_list+=\"$ifnames\""
+	sysrc ngup_${bridge}_list+="$ifnames"
 }
 
+# service ngup destroy: remove an eiface
+# WARNING: "Space delimiters" don't seem to work via run_rc_command
 ngup_destroy() {
-        ifnames="$1"
-        bridgename="$2"
-        case $bridgename in
-                private)bridge="$ngup_private_bridge" ;;
-                public) bridge="$ngup_public_bridge" ;;
-                "")     if [ -n "$ngup_public_bridge" ]; then
-                                bridge="$ngup_public_bridge"
-                        else
-                                bridge="$ngup_private_bridge"
-                        fi ;;
-                *)      exit ;; # Extend to custom bridges?
-        esac
+	ifnames="$1"
+	bridge="$2"
+	[ -n "$bridge" ] || ngup_find_bridge
+	# Can I do : ${bridge:=ngup_find_bridge}
 	echo $ifnames|xargs -tn1 -I% ngctl shutdown %:
-        eval "sysrc ngup_${bridge}_list-=\"$ifnames\""
+	sysrc ngup_${bridge}_list-="$ifnames"
 }
 
+# Create nodes and ifaces defined in rc.conf
 ngup_start() {
 	echo Starting $name.
 	ngup_init
-	if [ -n "$ngup_private_if" ]; then
+	if [ -n "$ngup_private_if" ]
+	then
 		ngup_private
 		ngup_addiflist "$ngup_private_bridge" "$ngup_private_list"
 	fi
-	if [ -n "$ngup_public_if" ]; then
+	if [ -n "$ngup_public_if" ]
+	then
 		ngup_public
 		ngup_addiflist "$ngup_public_bridge" "$ngup_public_list"
 	fi
 	echo Created $LNUM links.
 }
 
+# Return a netgraph link count
 ngup_status() {
 	ngup_init
 	echo Netgraph links: $LNUM
 }
 
+# Blindly lay waste to all netgraph nodes
 ngup_stop() {
 	ngctl list |\
 	awk '{print $2}'|\
