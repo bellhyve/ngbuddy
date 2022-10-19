@@ -5,7 +5,7 @@ An rc.d script for managing netgraph networks in mixed vm+jail environments.
 Features:
 * Create "public" bridges, linked to a real interface.
 * Create "private" bridges, linekd to a Netgraph eiface node.
-* Simplify creating and destroying additional eiface nodes, e.g., for use in VNET jails.
+* Create and destroy additional bridges and eiface nodes, e.g., for use in VNET jails.
 * Configure vm-bhyve 1.5+ for use with the bridges.
 
 This tool is inspired by [jng](https://github.com/freebsd/freebsd-src/blob/main/share/examples/jails/jng) and [the Netgraph article by Klara Systems](https://klarasystems.com/articles/using-netgraph-for-freebsds-bhyve-networking/).
@@ -21,17 +21,17 @@ for running private network services, such as dhcpd.
   2. `service ngup enable`
   3. `service ngup start`
   4. `service ngup vmconf`
-  5. `service ngup create pubjail`
-  6. `service ngup create privjail`
+  5. `service ngup create pubjail public`
+  6. `service ngup create privjail private`
   7. Configure your jails and vms and netgraph away!
 
 ## More Details
 
 To clarify the above terminology, a "public" bridge connected to a host's existing interface such as the LAN, and a "private" isolated bridge adds an eiface that can be used for a host-only DHCP/DNS server with otubound NAT.
 
-Custom bridge names can be added with *ngup_bridge_name_if*. If the interface exists we'll bridge to it ("public"). If the interface doesn't exist, we'll create an eiface with that name along with the bridge ("private").
+Custom bridge names can be added with *ngup_bridge_name_if* or on the fly with `service ngup bridge BRIDGE_NAME BRIDGE_IF`. If the interface exists we'll bridge to it ("public"). If the interface doesn't exist, we'll create an eiface with that name along with the bridge ("private").
 
-These bridges can be added to vm-bhyve 1.5+ using `service ngup vmconf`.
+These bridges can be updated or added to vm-bhyve 1.5+ using `service ngup vmconf`.
 
 Link an eiface, e.g., for jails, using "service ngup create jail_name bridge_name". Drop an eiface using "service ngup destroy jail_name bridge_name". If "bridge_name" is omitted, create/destroy will try the "ngup_bridge_default" option ("public" in the default setup).
 
@@ -64,23 +64,33 @@ To add additional eifaces to the bridge, e.g., for use with jails, use `service 
 
 `service ngup create jail_outside public`
 
-And drop them with:
+To add additional bridges on the fly, you can use the following, the last parameter should be the (real) ether instance to link to or associated eiface to create:
 
-`service ngup destroy jail_inside private`
+`service ngup bridge new_priv eth0`
 
-`service ngup destroy jail_outside public`
+`service ngup bridge new_pub nghost1`
+
+Drope nodes with no associated lists with:
+
+`service ngup destroy jail_inside`
+
+`service ngup destroy jail_outside`
+
+`service ngup destroy new_priv`
+
+`service ngup destroy new_pub`
 
 
 ## FAQ
 
 **Can this coexist with my if_bridge (epair/tap) setup?**
 
-You bet; an if_bridge interface and eiface (Netgraph interface) can share a network through a bridge, including a physical or private network with DHCP. Try `ifconfig bridge0 addm nghost0` to link your "private" ngup interfaces to your if_bridge epairs/taps/etc. This is handy for an in-place virtual jail migration.
+You bet; an if_bridge interface and eiface (Netgraph interface) can share a network through a bridge, including a physical or private network with DHCP. Try `ifconfig bridge0 addm nghost0` to link your "private" ngup interfaces to your if_bridge epairs/taps/etc. This is handy for an in-place virtual jail migration from epair to netgraph.
 
 
-**Is there more mature tool for jails that takes care with MAC addresses and creates & destroys nodes when starting/stopping jails?**
+**Is there a more mature tool for jails that takes care with MAC addresses and creates & destroys nodes when starting/stopping jails?**
 
-Check out `/usr/share/examples/jails/jng`, which is perfect for many situations.
+Check out `/usr/share/examples/jails/jng`, which is perfect for most situations and is excellent for keeping MAC addresses consistent between migrations.
 
 
 **How do I make a PNG Netgraph map of my insane ngup configuration?**
