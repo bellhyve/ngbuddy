@@ -1,10 +1,10 @@
 #!/bin/sh
 
-# ngup helps manage a simple netgraph setup for jail+vm environments.
+# netgraph-buddy (ngup) helps configure netgraph in jail+vm environments.
 #
 # PROVIDE: ngup
-# REQUIRE: SERVERS dmesg
-# BEFORE:  vm jail
+# REQUIRE: FILESYSTEMS
+# BEFORE: netif
 
 . /etc/rc.subr
 
@@ -22,14 +22,14 @@ rcvar="ngup_enable"
 #
 # These bridges can be added to vm-bhyve 1.5+ using "service ngup vmconf".
 #
-# Create and link and eiface using "service ngup create JAIL_NAME BRIDGE_NAME".
-# If bridge_name is not given, we'll use ngup_brdige_default.
+# Create and link and eiface using "service ngup create JAIL [BRIDGE]".
+# If bridge is not given, we'll try to guess using ngup_bridge_default.
 #
 # Create a bridge and link it to an ether device or new or new eiface with
 # "service ngup bridge BRIDGE_NAME BRIDGE_IF"
 #
 # Shutdown a created node using "service ngup destroy NAME". Bridges cannot be
-# dropped until all eifaces in ngup_BRIDGE_NAME_list have beend shutdown.
+# dropped until all eifaces in ngup_BRIDGE_NAME_list have been shutdown.
 
 command="/usr/local/sbin/${name}"
 enable_cmd="${name}_enable"
