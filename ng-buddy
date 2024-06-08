@@ -8,7 +8,7 @@
 
 . /etc/rc.subr
 
-name="ng-buddy"
+name="ngb"
 rcvar="ngb_enable"
 
 # By default, "service ngb enable" will generate a "public" and "private"
@@ -42,7 +42,7 @@ destroy_cmd="${name}_destroy"
 vmconf_cmd="${name}_vmconf"
 vmname_cmd="${name}_vmname"
 jail_cmd="${name}_jail"
-jail_cmd="${name}_unjail"
+unjail_cmd="${name}_unjail"
 extra_commands="bridge create destroy jail unjail vmconf vmname"
 
 load_rc_config "$ngb"
@@ -63,7 +63,6 @@ ngb_enable() {
 	then
 		exit 0
 	else
-		echo
 		echo Adding default bridges.
 	fi
 	: ${ngb_public_if:="`netstat -rn|grep default|cut -wf4|tr . _`"}
@@ -204,8 +203,9 @@ ngb_destroy() {
 ngb_unjail() {
 	if_name="$1"
 	jail_name="${2:-$1}"
-	ngb_shutdown_eiface "$@"
 	ifconfig "$if_name" -vnet "$jail_name"
+	ngctl shutdown "${if_name}:"
+	#ngb_shutdown_eiface "$if_name"
 }
 
 ngb_bridge() {
