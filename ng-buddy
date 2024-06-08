@@ -201,6 +201,12 @@ ngb_destroy() {
 	sysrc ngb_${bridge}_list-="$nodename"
 }
 
+ngb_unjail() {
+	if_name="$1"
+	jail_name="${2:-$1}"
+	ngb_shutdown_eiface "$@"
+	ifconfig "$if_name" -vnet "$jail_name"
+}
 
 ngb_bridge() {
 	bridge=$1
