@@ -42,8 +42,9 @@ destroy_cmd="${name}_destroy"
 vmconf_cmd="${name}_vmconf"
 vmname_cmd="${name}_vmname"
 jail_cmd="${name}_jail"
+unbridge_cmd="${name}_shutdown_bridge"
 unjail_cmd="${name}_unjail"
-extra_commands="bridge create destroy jail unjail vmconf vmname"
+extra_commands="bridge create destroy jail unbridge unjail vmconf vmname"
 
 load_rc_config "$ngb"
 # TO-DO: Find a more elegant way to get the dynamic "bridge_name" list.
@@ -256,6 +257,8 @@ ngb_bridge() {
 
 # TO-DO: Show a complete list of bridged connections if applicable.
 ngb_shutdown_bridge() {
+	nodename="$1"
+	# TO-DO: We also need to check for bridges not recorded in rc.conf.
 	eval node_list=\$ngb_${nodename}_list
 	if [ -n "$node_list" ]
 	then
@@ -264,20 +267,22 @@ ngb_shutdown_bridge() {
 		return 1
 	fi
 	eval bridgeif=\$ngb_${nodename}_if
-	iftype=`ngctl list|grep -w $bridgeif|cut -wf5`
-	if [ "$iftype" == "eiface" ]
+	if [ -n "$bridgeif" ]
 	then
-		echo "Shutdown $bridgeif"
-		echo ngctl shutdown "$bridgeif":
-	else
-		echo Shutdown bridge $nodename
-		echo ngctl shutdown "$nodename":
+		iftype=`ngctl list|grep -w $bridgeif|cut -wf5`
+		if [ "$iftype" == "eiface" ]
+		then
+			#echo "Shutdown $bridgeif"
+			echo ngctl shutdown "$bridgeif":
+			ngctl shutdown "${bridgeif}:"
+		else
+		fi
 	fi
-	sysrc -x ngb_$nodename_if
-}
-
-ngb_unbridge() {
-	ngb_shutdown_bridge "$@"
+	#echo Shutdown bridge $nodename
+	# TO-DO: Skip if bridge is already gone.
+	echo ngctl shutdown "$nodename":
+	ngctl shutdown "$nodename":
+	sysrc -x "ngb_${nodename}_if"
 }
 
 # Create nodes and ifaces defined in rc.conf

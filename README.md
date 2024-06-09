@@ -14,8 +14,8 @@
 **service ng-buddy restart** \
 **service ng-buddy status**
 
-**service ng-buddy bridge** _interface_ \
-**service ng-buddy unbridge** _interface_
+**service ng-buddy bridge** _bridge_ _interface_ \
+**service ng-buddy unbridge** _bridge
 
 **service ng-buddy jail** _interface_ [_bridge_]\
 **service ng-buddy unjail** _interface_ [_jail_]\
@@ -27,7 +27,7 @@
 
 # DESCRIPTION
 
-**ng-buddy** ("Netgraph Buddy") is an rc.d script for managing netgraph(4) networks in mixed vm and jail environments. `rc.conf` variables prefixed by `ngb_` are used to manage "permanent" `ng_bridge(4)` and `ng_eiface(4)` devices.  Additional tools assist with configuring `vm(8)` (vm-bhyve) and naming their sockets for statistics and graphing.
+**ng-buddy** ("Netgraph Buddy") is an rc.d script for managing netgraph(4) networks in mixed vm and jail environments. **rc.conf** variables prefixed by **ngb_** are used to manage "permanent" ng_bridge(4)` and `ng_eiface(4)` devices.  Additional tools assist with configuring vm-bhyve and naming their sockets for statistics and graphing.
 
 # QUICK START EXAMPLE
 
@@ -56,15 +56,20 @@ Once post-configuration is to your liking, create jails or bhyve instances attac
 # SUBCOMMANDS
 Subcommands are called using **service ng-buddy _SUBCOMMAND_**. Note that all commands rely on **ngctl(8)** and require root permissions.
 
-**enable**  Create a basic default **ng-buddy** configuration and enable the service.
+**enable**
+:    Create a basic default **ng-buddy** configuration and enable the service.
 
-**start**  Load the **ng_bridge(4)** and **ng_eiface(4)** options present in **rc.conf**.
+**start**
+:    Load the **ng_bridge(4)** and **ng_eiface(4)** options present in **rc.conf**.
 
-**stop**  Destroy all **ng_bridge(4)** and **ng_eiface(4)** devices, regardless of whether they were created with **ng-buddy** or not.
+**stop**
+:    Destroy all **ng_bridge(4)** and **ng_eiface(4)** devices, regardless of whether they were created with **ng-buddy** or not.
 
-**restart**  Stop, then start.
+**restart**
+:    Stop, then start.
 
-**status**  Print a list of **ng_bridge(4)**, **ng_eiface(4)**, and **ng_socket(4)** devices and basic usage statistics.
+**status**
+:    Print a list of **ng_bridge(4)**, **ng_eiface(4)**, and **ng_socket(4)** devices and basic usage statistics.
 
 **service ng-buddy bridge** _bridge_ _interface_
 :    Create a bridge and an associated **rc.conf** entry. If the _interface_ exists, _bridge_ will be associated with it. Otherwise, _interface_ will be created as a new **ng_eiface(4)** device.
