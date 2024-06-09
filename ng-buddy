@@ -143,6 +143,7 @@ ngb_public() {
 	ngctl mkpeer $linkif: bridge lower link${LNUM}; linkpp
 	ngctl name  $linkif:lower $bridge
 	ngctl connect $linkif: $bridge: upper link${LNUM}; linkpp
+	ifconfig $linkif lro -tso4 -tso6 -vlanhwfilter -vlanhwtso
 }
 
 # Attach a new eiface to the specified bridge
