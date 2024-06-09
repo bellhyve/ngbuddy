@@ -23,11 +23,11 @@ bhyve(8)
 .PD
 \f[B]service ng\-buddy status\f[R]
 .PP
-\f[B]service ng\-buddy bridge\f[R] \f[I]interface\f[R]
+\f[B]service ng\-buddy bridge\f[R] \f[I]bridge\f[R] \f[I]interface\f[R]
 .PD 0
 .P
 .PD
-\f[B]service ng\-buddy unbridge\f[R] \f[I]interface\f[R]
+\f[B]service ng\-buddy unbridge\f[R] _bridge
 .PP
 \f[B]service ng\-buddy jail\f[R] \f[I]interface\f[R] [\f[I]bridge\f[R]]
 .PD 0
@@ -52,11 +52,11 @@ bhyve(8)
 .SH DESCRIPTION
 \f[B]ng\-buddy\f[R] (\[lq]Netgraph Buddy\[rq]) is an rc.d script for
 managing netgraph(4) networks in mixed vm and jail environments.
-\f[CR]rc.conf\f[R] variables prefixed by \f[CR]ngb_\f[R] are used to
-manage \[lq]permanent\[rq] \f[CR]ng_bridge(4)\f[R] and
-\f[CR]ng_eiface(4)\f[R] devices.
-Additional tools assist with configuring \f[CR]vm(8)\f[R] (vm\-bhyve)
-and naming their sockets for statistics and graphing.
+\f[B]rc.conf\f[R] variables prefixed by \f[B]ngb_\f[R] are used to
+manage \[lq]permanent\[rq] ng_bridge(4)\f[CR]and\f[R]ng_eiface(4)\[ga]
+devices.
+Additional tools assist with configuring vm\-bhyve and naming their
+sockets for statistics and graphing.
 .SH QUICK START EXAMPLE
 The following commands will configure a system for netgraph in a way
 that is suitable for most common setups on systems where no netgraph
@@ -97,22 +97,25 @@ Subcommands are called using \f[B]service ng\-buddy
 \f[BI]SUBCOMMAND\f[B]\f[R].
 Note that all commands rely on \f[B]ngctl(8)\f[R] and require root
 permissions.
-.PP
-\f[B]enable\f[R] Create a basic default \f[B]ng\-buddy\f[R]
-configuration and enable the service.
-.PP
-\f[B]start\f[R] Load the \f[B]ng_bridge(4)\f[R] and
-\f[B]ng_eiface(4)\f[R] options present in \f[B]rc.conf\f[R].
-.PP
-\f[B]stop\f[R] Destroy all \f[B]ng_bridge(4)\f[R] and
-\f[B]ng_eiface(4)\f[R] devices, regardless of whether they were created
-with \f[B]ng\-buddy\f[R] or not.
-.PP
-\f[B]restart\f[R] Stop, then start.
-.PP
-\f[B]status\f[R] Print a list of \f[B]ng_bridge(4)\f[R],
-\f[B]ng_eiface(4)\f[R], and \f[B]ng_socket(4)\f[R] devices and basic
-usage statistics.
+.TP
+\f[B]enable\f[R]
+Create a basic default \f[B]ng\-buddy\f[R] configuration and enable the
+service.
+.TP
+\f[B]start\f[R]
+Load the \f[B]ng_bridge(4)\f[R] and \f[B]ng_eiface(4)\f[R] options
+present in \f[B]rc.conf\f[R].
+.TP
+\f[B]stop\f[R]
+Destroy all \f[B]ng_bridge(4)\f[R] and \f[B]ng_eiface(4)\f[R] devices,
+regardless of whether they were created with \f[B]ng\-buddy\f[R] or not.
+.TP
+\f[B]restart\f[R]
+Stop, then start.
+.TP
+\f[B]status\f[R]
+Print a list of \f[B]ng_bridge(4)\f[R], \f[B]ng_eiface(4)\f[R], and
+\f[B]ng_socket(4)\f[R] devices and basic usage statistics.
 .TP
 \f[B]service ng\-buddy bridge\f[R] \f[I]bridge\f[R] \f[I]interface\f[R]
 Create a bridge and an associated \f[B]rc.conf\f[R] entry.
@@ -149,6 +152,20 @@ configuration.
 \f[B]service ng\-buddy vmname\f[R]
 Name \f[B]ng_socket(4)\f[R] devices associated with bhyve instances
 running via \f[B]vm(8)\f[R].
+.SH RC.CONF VARIABLES
+\f[CR]service ng\-buddy ...\f[R] subcommands will automatically use
+sysrc(8) to configure rc.conf with the following variables for
+persistent configuration on service restart or system reboot.
+.TP
+\f[B]ngb_enable=YES\f[R]
+Enable the service.
+.TP
+\f[B]ngb_BRIDGE_if=\[lq]IF\[rq]\f[R]
+Link a new BRIDGE to interface IF.
+If IF does not exist, create an ng_eiface device.
+.TP
+\f[B]ngb_BRIDGE_list=\[lq]IF1 IF2 \&...\f[R]
+Create additional ng_eiface devices attached to BRIDGE.
 .SH FILES
 .TP
 \f[B]/usr/local/etc/rc.d/ng\-buddy\f[R]

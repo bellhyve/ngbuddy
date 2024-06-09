@@ -95,6 +95,20 @@ Subcommands are called using **service ng-buddy _SUBCOMMAND_**. Note that all co
 **service ng-buddy vmname**
 :    Name **ng_socket(4)** devices associated with bhyve instances running via **vm(8)**.
 
+# RC.CONF VARIABLES
+
+The above subcommands will use sysrc(8) to configure rc.conf with the following variables for persistent configuration on service restart or system reboot, which can also be edited manually.
+
+**ngb_enable=YES**
+:    Enable the service.
+
+**ngb_BRIDGE_if="IF"**
+:    Link a new BRIDGE to interface IF. If IF does not exist, create an ng_eiface device.
+
+**ngb_BRIDGE_list="IF1 IF2 ...**
+:    Create additional ng_eiface devices attached to BRIDGE.
+
+
 # FILES
 **/usr/local/etc/rc.d/ng-buddy**
 :    The Netgraph Buddy run control script.

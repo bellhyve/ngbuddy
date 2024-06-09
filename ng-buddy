@@ -1,37 +1,25 @@
 #!/bin/sh
 
-# netgraph-buddy (ngb) helps configure netgraph in jail+vm environments.
+# PROVIDE:	ngb
+# REQUIRE:	FILESYSTEMS
+# BEFORE:	NETWORKING
+
+# See ng-buddy(8) for confiugration details. For manual configuration,
+# add the following to /etc/rc.conf[.local]:
 #
-# PROVIDE: ngb
-# REQUIRE: FILESYSTEMS
-# BEFORE: netif
+# ngb_enable="YES"
+# ngb_BRIDGE_if="IF"
+#	Link a new BRIDGE to interface IF.
+#	If IF does not exist, create an ng_eiface device.
+# ngb_BRIDGE_list="IF1 IF2 ..."
+#	Create additional ng_eiface devices attached to BRIDGE.
 
 . /etc/rc.subr
 
 name="ngb"
+desc="configures netgraph bridge and eiface devices"
 rcvar="ngb_enable"
 
-# By default, "service ngb enable" will generate a "public" and "private"
-# netgraph bridge. "public" will attach to the interface associated with the
-# default route, while "private" links to a new netgraph eiface called "nghost0"
-# for running private network services, such as dhcpd.
-#
-# Custom bridge names can be added with "ngb_BRIDGE_NAME_if". If the interface
-# exists we'll bridge to it. If the interface doesn't exist, we'll create an
-# eiface with that name along with the bridge.
-#
-# These bridges can be added to vm-bhyve 1.5+ using "service ngb vmconf".
-#
-# Create and link and eiface using "service ngb create JAIL [BRIDGE]".
-# If bridge is not given, we'll try to guess using ngb_bridge_default.
-#
-# Create a bridge and link it to an ether device or new or new eiface with
-# "service ngb bridge BRIDGE_NAME BRIDGE_IF"
-#
-# Shutdown a created node using "service ngb destroy NAME". Bridges cannot be
-# dropped until all eifaces in ngb_BRIDGE_NAME_list have been shutdown.
-
-#command="/usr/local/etc/rc.d/${name}"
 enable_cmd="${name}_enable"
 start_cmd="${name}_start"
 stop_cmd="${name}_stop"
