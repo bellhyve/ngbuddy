@@ -1,6 +1,4 @@
 % ng-buddy(8) | System Manager's Manual
-% Daniel J. Bell
-% July 8, 2024
 
 # NAME
 
@@ -56,7 +54,7 @@ Once post-configuration is to your liking, create jails or bhyve instances attac
 # SUBCOMMANDS
 Subcommands are called using **service ng-buddy _SUBCOMMAND_**. Note that all commands rely on **ngctl(8)** and require root permissions.
 
-**enable**  Create a basic default **ng-buddy** configuration and enable the service.
+**enable**  Create a basic default **ng-buddy** configuraiton and enable the service.
 
 **start**  Load the **ng_bridge(4)** and **ng_eiface(4)** options present in **rc.conf**.
 
@@ -90,25 +88,58 @@ Subcommands are called using **service ng-buddy _SUBCOMMAND_**. Note that all co
 **service ng-buddy vmname**
 :    Name **ng_socket(4)** devices associated with bhyve instances running via **vm(8)**.
 
-# FILES
-**/usr/local/etc/rc.d/ng-buddy**
-:    The Netgraph Buddy run control script.
-
-**/usr/local/share/ng-buddy/**
-:    Helper scripts for the **status** and **mermaid** subcommands.
-
 # NOTES
 
-These scripts were developed to assist with new netgraph features in **vm-bhyve 1.5+**, and were inspired by the **/usr/share/examples/jails/jng** example script and additional examples by Klara Systems.
+These scripts were developed to assist with new netgraph features in **vm-bhyve 1.5+**, and were inspired by [jng](https://github.com/freebsd/freebsd-src/blob/main/share/examples/jails/jng) and [the Netgraph article by Klara Systems](https://klarasystems.com/articles/using-netgraph-for-freebsds-bhyve-networking/).
 
-# SEE ALSO
+## Further detail on ustomizing and extending ngup
 
-netgraph(4), ng_bridge(4), ngctl(8), ng_eiface(4), ng_socket(4), vm(8)
+The **public** bridge binds to a real interface (the first available "up" interface by default). Make another bridge binding to another interface with `ngb_bridge_name_if=real_if`, e.g., `sysrc ngb_voip_if=ix2`.
 
-# HISTORY
+The **private** bridge creates an interface called *nghost0* intended for host-only networking or NAT networking. For example, you can run a DHCP & DNS server on nghost0 for your guests, and use _pf_ or _ipfw_ to NAT out. Make another private bridge by specifing the interface name to be created (one that does not already exist) with `ngb_bridge_name_if=eiface_name`, e.g., `sysrc ngb_devnet_if=dev0`.
 
-Netgraph Buddy (as "ngup") was originally developed as an internal tool for Bell Tower Integration in August 2022.
+To add additional eifaces to the bridge, e.g., for use with jails, use `service ngup create`:
 
-# CONTRIBUTING
+`service ngup create jail_inside private`
 
-To submit bug reports or contribute, see https://github.com/bellhyve/netgraph-buddy.
+`service ngup create jail_outside public`
+
+To add additional bridges on the fly, you can use the following, the last parameter should be the (real) ether instance to link to or associated eiface to create:
+
+`service ngup bridge new_priv eth0`
+
+`service ngup bridge new_pub nghost1`
+
+Drope nodes with no associated lists with:
+
+`service ngup destroy jail_inside`
+
+`service ngup destroy jail_outside`
+
+`service ngup destroy new_priv`
+
+`service ngup destroy new_pub`
+
+
+## FAQ
+
+**Can this coexist with my if_bridge (epair/tap) setup?**
+
+You bet; an if_bridge interface and eiface (Netgraph interface) can share a network through a bridge, including a physical or private network with DHCP. Try `ifconfig bridge0 addm nghost0` to link your "private" ngup interfaces to your if_bridge epairs/taps/etc. This is handy for an in-place virtual jail migration from epair to netgraph.
+
+
+**Is there a more mature tool for jails that takes care with MAC addresses and creates & destroys nodes when starting/stopping jails?**
+
+Check out `/usr/share/examples/jails/jng`, which is perfect for most situations and is excellent for keeping MAC addresses consistent between migrations.
+
+
+**How do I make a PNG Netgraph map of my insane ngup configuration?**
+
+Use the graphviz package:
+
+`ngctl dot | dot -T png -o map.png`
+
+
+**Why does this file look like you've never used markdown before?**
+
+¯\_(ツ)_/¯
