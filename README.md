@@ -27,7 +27,7 @@
 
 # DESCRIPTION
 
-**ng-buddy** ("Netgraph Buddy") is an rc.d script for managing netgraph(4) networks in mixed vm and jail environments. **rc.conf** variables prefixed by **ngb_** are used to manage "permanent" ng_bridge(4)` and `ng_eiface(4)` devices.  Additional tools assist with configuring vm-bhyve and naming their sockets for statistics and graphing.
+**ng-buddy** ("Netgraph Buddy") is an rc.d script for managing netgraph(4) networks in mixed vm and jail environments. **rc.conf** variables prefixed by **ngb_** are used to manage "permanent" ng_bridge(4) and ng_eiface(4) devices.  Additional tools assist with configuring vm-bhyve and naming their sockets for statistics and graphing.
 
 # QUICK START EXAMPLE
 
@@ -107,6 +107,9 @@ The above subcommands will use sysrc(8) to configure rc.conf with the following 
 
 **ngb_BRIDGE_list="IF1 IF2 ...**
 :    Create additional ng_eiface devices attached to BRIDGE.
+
+**ngb_set_mac="** _YES_ | _SEED_ **"**
+:    If YES, the assigned hardware address will be determined from the interface name. To prevent collisions with other Netgraph Buddy hosts on a physical interface bridge, choose a unique seed such as `${hostname}`.
 
 
 # FILES

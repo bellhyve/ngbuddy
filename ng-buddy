@@ -145,9 +145,14 @@ ngb_addif() {
 	ifconfig $ngif name $ifname >/dev/null
 }
 
-# Attach new eifaces to the specified bridge
-ngb_addiflist() {
+ngb_set_mac() {
+	ifname="$1"
+	seed="$1$2"
+	hash=$(echo -n "$seed" | openssl dgst -sha1 | sed 's/.* //')
+	mac="02:${hash:0:2}:${hash:2:2}:${hash:4:2}:${hash:6:2}:${hash:8:2}"
+	ifconfig $ifname ether "$mac"
 }
+
 
 # service ngb create: add the eiface to the specified (or default) bridge
 ngb_eiface() {
@@ -160,6 +165,11 @@ ngb_eiface() {
 	fi
 	[ $LNUM = 0 ] && linkpp
 	ngb_addif "$bridge" "$ifname"
+	case "${ngb_set_mac}" in
+		[Nn][Oo] | '')	;;
+		[Yy][Ee][Ss])	ngb_set_mac "$ifname"
+		*)		ngb_set_mac "$ifname" "$ngb_set_mac"
+	esac
 }
 
 ngb_create() {
@@ -246,16 +256,16 @@ ngb_bridge() {
 
 # TO-DO: Show a complete list of bridged connections if applicable.
 ngb_shutdown_bridge() {
-	nodename="$1"
+	bridge="$1"
 	# TO-DO: We also need to check for bridges not recorded in rc.conf.
-	eval node_list=\$ngb_${nodename}_list
+	eval node_list=\$ngb_${bridge}_list
 	if [ -n "$node_list" ]
 	then
-		echo -n $nodename is a bridge. First destroy:\
+		echo -n $bridge is a bridge. First destroy:\
 		echo $node_list
 		return 1
 	fi
-	eval bridgeif=\$ngb_${nodename}_if
+	eval bridgeif=\$ngb_${bridge}_if
 	if [ -n "$bridgeif" ]
 	then
 		iftype=`ngctl list|grep -w $bridgeif|cut -wf5`
@@ -267,11 +277,11 @@ ngb_shutdown_bridge() {
 		else
 		fi
 	fi
-	#echo Shutdown bridge $nodename
+	#echo Shutdown bridge $bridge
 	# TO-DO: Skip if bridge is already gone.
-	echo ngctl shutdown "$nodename":
-	ngctl shutdown "$nodename":
-	sysrc -x "ngb_${nodename}_if"
+	echo ngctl shutdown "$bridge":
+	ngctl shutdown "$bridge":
+	sysrc -x "ngb_${bridge}_if"
 }
 
 # Create nodes and ifaces defined in rc.conf
