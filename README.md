@@ -41,6 +41,7 @@ The following commands will configure a system for netgraph in a way that is sui
 	ngb_enable="YES"
 	ngb_public_if="em0"
 	ngb_private_if="nghost0"
+	ngb_set_mac="NO"
 ```
 
 **service ng-buddy start**

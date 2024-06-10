@@ -58,6 +58,7 @@ ngb_enable() {
 	: ${ngb_private_if:="nghost0"}
 	sysrc ngb_public_if="$ngb_public_if"
 	sysrc ngb_private_if="$ngb_private_if"
+	sysrc ngb_set_mac="NO"
 }
 
 # Configure vm-bhyve with ngb bridges (version 1.5+ required)
@@ -145,17 +146,16 @@ ngb_addif() {
 	ifconfig $ngif name $ifname >/dev/null
 }
 
-ngb_set_mac() {
+ngb_ifconfig_ether() {
 	ifname="$1"
 	seed="$1$2"
-	hash=$(echo -n "$seed" | openssl dgst -sha1 | sed 's/.* //')
-	mac="02:${hash:0:2}:${hash:2:2}:${hash:4:2}:${hash:6:2}:${hash:8:2}"
-	ifconfig $ifname ether "$mac"
+	mac=$(echo -n "$seed" | sha1 | cut -c1-10)
+	ifconfig $ifname ether "02$mac"
 }
 
 
 # service ngb create: add the eiface to the specified (or default) bridge
-ngb_eiface() {
+ngb_create_eiface() {
 	ngb_init
 	ifname="$1"
 	bridge="$2"
@@ -166,20 +166,19 @@ ngb_eiface() {
 	[ $LNUM = 0 ] && linkpp
 	ngb_addif "$bridge" "$ifname"
 	case "${ngb_set_mac}" in
-		[Nn][Oo] | '')	
-				;;
-		[Yy][Ee][Ss])	ngb_set_mac "$ifname"
-		*)		ngb_set_mac "$ifname" "$ngb_set_mac"
+		[Nn][Oo] | '')	;;
+		[Yy][Ee][Ss])	ngb_ifconfig_ether "$ifname" ;;
+		*)		ngb_ifconfig_ether "$ifname" "$ngb_set_mac" ;;
 	esac
 }
 
 ngb_create() {
-	ngb_eiface "$@"
+	ngb_create_eiface "$@"
 	sysrc ngb_${bridge}_list+="$ifname"
 }
 
 ngb_jail() {
-	ngb_eiface "$@"
+	ngb_create_eiface "$@"
 }
 
 # service ngb destroy: remove an eiface
