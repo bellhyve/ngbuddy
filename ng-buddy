@@ -166,7 +166,8 @@ ngb_eiface() {
 	[ $LNUM = 0 ] && linkpp
 	ngb_addif "$bridge" "$ifname"
 	case "${ngb_set_mac}" in
-		[Nn][Oo] | '')	;;
+		[Nn][Oo] | '')	
+				;;
 		[Yy][Ee][Ss])	ngb_set_mac "$ifname"
 		*)		ngb_set_mac "$ifname" "$ngb_set_mac"
 	esac
