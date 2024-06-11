@@ -149,7 +149,9 @@ ngbuddy_addif() {
 ngbuddy_ifconfig_ether() {
 	ifname="$1"
 	seed="$1$2"
-	mac=$(echo -n "$seed" | sha1 | cut -c1-10)
+	: ${ngbuddy_set_mac_prefix:="589cfc"}
+	mac_len=$((12-${#ngbuddy_set_mac_prefix}))
+	mac="$ngbuddy_set_mac_prefix$(echo -n "$seed" | sha1 | cut -c1-$mac_len)"
 	ifconfig $ifname ether "02$mac"
 }
 
