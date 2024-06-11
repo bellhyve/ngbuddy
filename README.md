@@ -1,105 +1,149 @@
-## ngup ("Netgraph Buddy")
+% ngbuddy(8) | System Manager's Manual
+% Daniel J. Bell
+% July 8, 2024
 
-An rc.d script for managing netgraph networks in mixed vm+jail environments.
+# NAME
 
-Features:
-* Create "public" bridges, linked to a real interface.
-* Create "private" bridges, linekd to a Netgraph eiface node.
-* Create and destroy additional bridges and eiface nodes, e.g., for use in VNET jails.
-* Configure vm-bhyve 1.5+ for use with the bridges.
+**ngbuddy** - simplified netgraph(4) manager for jail(8) and bhyve(8)
 
-This tool is inspired by [jng](https://github.com/freebsd/freebsd-src/blob/main/share/examples/jails/jng) and [the Netgraph article by Klara Systems](https://klarasystems.com/articles/using-netgraph-for-freebsds-bhyve-networking/).
+# SYNOPSIS
 
-By default, "service ngup enable" will generate a "public" and "private"
-netgraph bridge. "public" will attach to the interface associated with the
-default route, while "private" links to a new netgraph eiface called "nghost0"
-for running private network services, such as dhcpd.
+**service ngbuddy enable** \
+**service ngbuddy start** \
+**service ngbuddy stop** \
+**service ngbuddy restart** \
+**service ngbuddy status**
 
-## Quick Start
+**service ngbuddy bridge** _bridge_ _interface_ \
+**service ngbuddy unbridge** _bridge_
 
-  1. Install the script in /usr/local/etc/rc.d/ngup and make it executable.
-  2. `service ngup enable`
-  3. `service ngup start`
-  4. `service ngup vmconf`
-  5. `service ngup create pubjail public`
-  6. `service ngup create privjail private`
-  7. Configure your jails and vms and netgraph away!
+**service ngbuddy jail** _interface_ [_bridge_]\
+**service ngbuddy unjail** _interface_ [_jail_]\
+**service ngbuddy create** _interface_ [_bridge_]\
+**service ngbuddy destroy** _interface_
 
-## More Details
+**service ngbuddy vmconf** \
+**service ngbuddy vmname**
 
-To clarify the above terminology, a "public" bridge connected to a host's existing interface such as the LAN, and a "private" isolated bridge adds an eiface that can be used for a host-only DHCP/DNS server with otubound NAT.
+# DESCRIPTION
 
-Custom bridge names can be added with *ngup_bridge_name_if* or on the fly with `service ngup bridge BRIDGE_NAME BRIDGE_IF`. If the interface exists we'll bridge to it ("public"). If the interface doesn't exist, we'll create an eiface with that name along with the bridge ("private").
+**ngbuddy** ("Netgraph Buddy") is an rc.d script for managing netgraph(4) networks in mixed vm and jail environments. **rc.conf** variables prefixed by **ngbuddy_** are used to manage "permanent" ng_bridge(4) and ng_eiface(4) devices.  Additional tools assist with configuring vm-bhyve and naming their sockets for statistics and graphing.
 
-These bridges can be updated or added to vm-bhyve 1.5+ using `service ngup vmconf`.
+# QUICK START EXAMPLE
 
-Link an eiface, e.g., for jails, using "service ngup create jail_name bridge_name". Drop an eiface using "service ngup destroy jail_name bridge_name". If "bridge_name" is omitted, create/destroy will try the "ngup_bridge_default" option ("public" in the default setup).
+The following commands will configure a system for netgraph in a way that is suitable for most common setups on systems where no netgraph configuration currently exists.
 
-If your jail configurations match the jail name, interface name, directory, and starting host name, you can use jail variables to very easily create and clone them. Part of the jail configuration can look like this, with only the first line different between jails:
+**service ngbuddy enable**
+:    Set **rc.conf** variables and create a _public_ bridge interface associated with the host system's default route, then create a _private_ bridge linked to a virtual interface named **nghost0** suitable for a local or NAT interfaces. It will append three **rc.conf** lines similar to the following, which you can modify before starting the service:
 
-```
-jail_pub_1 {
-    host.hostname = $name;
-    path ="/jail/$name";
-    vnet.interface = "$name";
-    exec.prestop = "ifconfig $name -vnet $name";
-}
+
+```sh
+	ngbuddy_enable="YES"
+	ngbuddy_public_if="em0"
+	ngbuddy_private_if="nghost0"
+	ngbuddy_set_mac="NO"
 ```
 
-To configure vm-bhyve with your ngup switches, run `service ngup vmconf` and ngup will back up your configuration file and will update your vm-bhyve "switch list" with your ngup bridges.
+**service ngbuddy start**
+:    This command creates the above interfaces.
 
-## Restarting
+**service ngbuddy vmconf**
+:    Add the our "public" and "private" bridges to the vm(8) configuration.
 
-**Warning:** `service ngup stop/restart` destroys all Netgraph eifaces and bridges, including ones not created with ngup!
+If you'd like to use host-only or NAT interface, you must configure the newly created **nghost0** interface. For example, you may want to set up IP addresses, a DNS resolver, and a DHCP server.
 
-## Further detail on ustomizing and extending ngup
+Once post-configuration is to your liking, create jails or bhyve instances attached to your _public_ or _private_ bridges as you prefer. See the **jail_skel.conf** for assistance configuring jails.
 
-The **public** bridge binds to a real interface (the first available "up" interface by default). Make another bridge binding to another interface with `ngup_bridge_name_if=real_if`, e.g., `sysrc ngup_voip_if=ix2`.
+# SUBCOMMANDS
+Subcommands are called using **service ngbuddy _SUBCOMMAND_**. Note that all commands rely on **ngctl(8)** and require root permissions.
 
-The **private** bridge creates an interface called *nghost0* intended for host-only networking or NAT networking. For example, you can run a DHCP & DNS server on nghost0 for your guests, and use _pf_ or _ipfw_ to NAT out. Make another private bridge by specifing the interface name to be created (one that does not already exist) with `ngup_bridge_name_if=eiface_name`, e.g., `sysrc ngup_devnet_if=dev0`.
+**enable**
+:    Create a basic default **ngbuddy** configuration and enable the service.
 
-To add additional eifaces to the bridge, e.g., for use with jails, use `service ngup create`:
+**start**
+:    Load the **ng_bridge(4)** and **ng_eiface(4)** options present in **rc.conf**.
 
-`service ngup create jail_inside private`
+**stop**
+:    Destroy all **ng_bridge(4)** and **ng_eiface(4)** devices, regardless of whether they were created with **ngbuddy** or not.
 
-`service ngup create jail_outside public`
+**restart**
+:    Stop, then start.
 
-To add additional bridges on the fly, you can use the following, the last parameter should be the (real) ether instance to link to or associated eiface to create:
+**status**
+:    Print a list of **ng_bridge(4)**, **ng_eiface(4)**, and **ng_socket(4)** devices and basic usage statistics.
 
-`service ngup bridge new_priv eth0`
+**service ngbuddy bridge** _bridge_ _interface_
+:    Create a bridge and an associated **rc.conf** entry. If the _interface_ exists, _bridge_ will be associated with it. Otherwise, _interface_ will be created as a new **ng_eiface(4)** device.
 
-`service ngup bridge new_pub nghost1`
+**service ngbuddy unbridge** _bridge_
+:    Remove the indicated bridge from netgraph and **rc.conf**. This operation will fail if devices appear to be attached to it.
 
-Drope nodes with no associated lists with:
+**service ngbuddy jail** _interface_ [_bridge_] 
+:    Create a new **ng_eiface(4)** associated with the indicated _bridge_.
 
-`service ngup destroy jail_inside`
+**service ngbuddy unjail** _interface_ [_jail_]
+:    Remove an **ng_eiface(4)** associated with the indicated _jail_.
 
-`service ngup destroy jail_outside`
+**service ngbuddy create** _interface_ [_bridge_]
+:    Create a new **ng_eiface(4)** associated with the indicated _bridge_ and add it to **rc.conf** so it will be created on startup.
 
-`service ngup destroy new_priv`
+**service ngbuddy destroy** _interface_
+:    Remove an **ng_eiface(4)** associated with the indicated _jail_ and remove it from **rc.conf**.
 
-`service ngup destroy new_pub`
+**service ngbuddy vmconf**
+:    Add the bridges in **rc.conf** to the **vm(8)** configuration.
+
+**service ngbuddy vmname**
+:    Name **ng_socket(4)** devices associated with bhyve instances running via **vm(8)**.
+
+# RC.CONF VARIABLES
+
+The above subcommands will use sysrc(8) to configure rc.conf with the following variables for persistent configuration on service restart or system reboot, which can also be edited manually.
+
+**ngbuddy_enable=**"_YES_"
+:    Enable the service.
+
+**ngbuddy_BRIDGE_if=**"_IF_"
+:    Link a new _BRIDGE_ to interface _IF_. If _IF_ does not exist, create an ng_eiface device.
+
+**ngbuddy_BRIDGE_list=**"_IF1 IF2 ..._"
+:    Create additional ng_eiface devices attached to _BRIDGE_ at startup.
+
+**ngbuddy_set_mac=**"_YES_|_SEED_"
+:    If set to _YES_, created ng_eiface hardware addresses will be determined from the interface name; this ensures the MAC stays consistent for the named interface regardless of the host it's generated on. Instead of _YES_, you may add a seed value, such as ${hostname} or a common seed to share among jail migration partners. If _NO_, the default auto-assignment will be used, which is more prone to MAC collisions.
 
 
-## FAQ
+# FILES
+**/usr/local/etc/rc.d/ngbuddy**
+:    The Netgraph Buddy run control script.
 
-**Can this coexist with my if_bridge (epair/tap) setup?**
+**/usr/local/share/ngbuddy/ngbuddy-status.awk**
+:    Helper for **service ngbuddy status**
 
-You bet; an if_bridge interface and eiface (Netgraph interface) can share a network through a bridge, including a physical or private network with DHCP. Try `ifconfig bridge0 addm nghost0` to link your "private" ngup interfaces to your if_bridge epairs/taps/etc. This is handy for an in-place virtual jail migration from epair to netgraph.
+**/usr/local/share/ngbuddy/ngbuddy-mmd.awk**
+:    An alternative to **ngctl dot** that creates a Mermaid-JS color diagram of netgraph nodes.
 
+# NOTES
 
-**Is there a more mature tool for jails that takes care with MAC addresses and creates & destroys nodes when starting/stopping jails?**
+These scripts were developed to assist with new netgraph features in **vm-bhyve 1.5+**, and were inspired by the **/usr/share/examples/jails/jng** example script and additional examples by Klara Systems.
 
-Check out `/usr/share/examples/jails/jng`, which is perfect for most situations and is excellent for keeping MAC addresses consistent between migrations.
+# EXAMPLES
 
+See **examples** at: https://github.com/bellhyve/netgraph-buddy
 
-**How do I make a PNG Netgraph map of my insane ngup configuration?**
+After following the above **QUICK START EXAMPLE**: \
+- Append the **devfs.rules** example to **/etc/devfs.rules** \
+- Extract a FreeBSD **base.txz** in **/jail/my_jail** \
+- Copy the **jail_skel.conf** to **/etc/jail.conf.d/my_jail.conf** \
+- In **my_jail.conf**, change the jail name to **my_jail** \
+- Run: **service jail start my_jail** \
 
-Use the graphviz package:
+This provides a simple framework for cloning jails and editing a single template line for rapid deployment of many VNET jails.
 
-`ngctl dot | dot -T png -o map.png`
+# SEE ALSO
 
+jail(8), netgraph(4), ng_bridge(4), ngctl(8), ng_eiface(4), ng_socket(4), vm(8)
 
-**Why does this file look like you've never used markdown before?**
+# HISTORY
 
-¯\_(ツ)_/¯
+Netgraph Buddy was originally developed as an internal tool for Bell Tower Integration in August 2022.

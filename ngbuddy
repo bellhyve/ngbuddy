@@ -1,0 +1,324 @@
+#!/bin/sh
+
+# PROVIDE:	ngbuddy
+# REQUIRE:	FILESYSTEMS
+# BEFORE:	NETWORKING
+
+# See ngbuddy(8) for confiugration details. For manual configuration,
+# add the following to /etc/rc.conf[.local]:
+#
+# ngbuddy_enable="YES"
+# ngbuddy_BRIDGE_if="IF"
+#	Link a new BRIDGE to interface IF.
+#	If IF does not exist, create an ng_eiface device.
+# ngbuddy_BRIDGE_list="IF1 IF2 ..."
+#	Create additional ng_eiface devices attached to BRIDGE.
+
+. /etc/rc.subr
+
+name="ngbuddy"
+desc="configures netgraph bridge and eiface devices"
+rcvar="ngbuddy_enable"
+
+enable_cmd="${name}_enable"
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+status_cmd="${name}_status"
+bridge_cmd="${name}_bridge"
+create_cmd="${name}_create"
+destroy_cmd="${name}_destroy"
+vmconf_cmd="${name}_vmconf"
+vmname_cmd="${name}_vmname"
+jail_cmd="${name}_jail"
+unbridge_cmd="${name}_shutdown_bridge"
+unjail_cmd="${name}_unjail"
+extra_commands="bridge create destroy jail unbridge unjail vmconf vmname"
+
+load_rc_config "$ngbuddy"
+# TO-DO: Find a more elegant way to get the dynamic "bridge_name" list.
+: ${ngbuddy_bridge_list:="`list_vars 'ngbuddy_*_if'|sed -E 's/^ngbuddy_|_if$//g'|xargs`"}
+: ${ngbuddy_share_dir:="/usr/local/share/ngbuddy"}
+
+# Count netgraph links
+linkpp() {
+	LNUM=$((LNUM+1))
+}
+
+# Make a "public" bridge to the NIC containing the default gateway, and create a
+# "private" bridge linked to eiface nghost0.
+ngbuddy_enable() {
+	sysrc ngbuddy_enable=YES
+	if [ -n "$ngbuddy_bridge_list" ]
+	then
+		exit 0
+	else
+		echo Adding default bridges.
+	fi
+	: ${ngbuddy_public_if:="`netstat -rn|grep default|cut -wf4|tr . _`"}
+	: ${ngbuddy_private_if:="nghost0"}
+	sysrc ngbuddy_public_if="$ngbuddy_public_if"
+	sysrc ngbuddy_private_if="$ngbuddy_private_if"
+	sysrc ngbuddy_set_mac="NO"
+}
+
+# Configure vm-bhyve with ngbuddy bridges (version 1.5+ required)
+ngbuddy_vmname() {
+	case "$vm_dir" in
+		zfs:*)	vm_dir="`echo "$vm_dir"|cut -d: -f2`"
+			vm_conf="`zfs get -H mountpoint "$vm_dir"|cut -wf3`" ;;
+		?*)	vm_conf="$vm_dir" ;;
+		*)	return ;;
+	esac
+	running_vms=`ps axww|awk '/bhyve[:] /{print $6}'`
+	for this_vm in $running_vms; do
+		vm_socket_name=`echo $this_vm|tr ". " _`
+		vm_if_conf=`tail -r "$vm_conf/$this_vm/vm-bhyve.log" |\
+			grep -Eom1 'netgraph,path=.*,peerhook=[^,]+'`
+		path=`echo $vm_if_conf|cut -d, -f2|cut -d= -f2`
+		peerhook=`echo $vm_if_conf|cut -d, -f3|cut -d= -f2`
+		ngctl name $path$peerhook $vm_socket_name
+	done
+}
+
+ngbuddy_vmconf() {
+	case "$vm_dir" in
+		zfs:*)	vm_dir="`echo "$vm_dir"|cut -d: -f2`"
+			vm_conf="`zfs get -H mountpoint "$vm_dir"|cut -wf3`" ;;
+		?*)	vm_conf="$vm_dir" ;;
+		*)	return ;;
+	esac
+	vm_bak="$vm_conf/.config/.system.conf.bak"
+	vm_conf="$vm_conf/.config/system.conf"
+	cp -p "$vm_conf" "$vm_bak"
+	echo Configuring $vm_conf:
+	sysrc -f "$vm_conf" switch_list+="$ngbuddy_bridge_list"
+	for ngbuddy_bridge in $ngbuddy_bridge_list
+	do
+		sysrc -f "$vm_conf" type_$ngbuddy_bridge=netgraph
+	done
+}
+
+# Make sure netgraph is loaded and count its links.
+ngbuddy_init() {
+	[ -n "$LNUM" ] && linkpp
+	kldload -nq ng_ether ng_bridge
+	LNUM=`ngctl list -l|awk -F'.*link| ' '/link/{if($2>x||x=="")x=$2}END{print x}'`
+	if [ -n "$LNUM" ]
+	then
+		linkpp
+	else
+		LNUM=0
+	fi
+}
+
+# Enable a private bridge and attach a new eiface.
+ngbuddy_private() {
+	bridge=$1
+	eval linkif=\$ngbuddy_${bridge}_if
+	ngctl mkpeer eiface ether ether
+	ngeth=`ngctl list|cut -wf3|grep '^ngeth'|sort -n|tail -1`
+	ngctl name $ngeth: $linkif
+	ifconfig $ngeth name $linkif up > /dev/null
+	ngctl mkpeer $linkif: bridge ether link${LNUM}; linkpp
+	ngctl name $linkif:ether $bridge
+}
+
+# Enable a public bridge and attach an existing NIC
+ngbuddy_public() {
+	bridge=$1
+	eval linkif=\$ngbuddy_${bridge}_if
+	ngctl msg $linkif: setpromisc 1
+	ngctl msg $linkif: setautosrc 0
+	ngctl mkpeer $linkif: bridge lower link${LNUM}; linkpp
+	ngctl name  $linkif:lower $bridge
+	ngctl connect $linkif: $bridge: upper link${LNUM}; linkpp
+	ifconfig $linkif lro -tso4 -tso6 -vlanhwfilter -vlanhwtso
+}
+
+# Attach a new eiface to the specified bridge
+ngbuddy_addif() {
+	bridge=$1
+	ifname=$2
+	ifconfig $ifname > /dev/null 2>&1 && return
+	ngctl mkpeer $bridge: eiface link${LNUM} ether
+	ngif=`ngctl show -n $bridge:link${LNUM} |awk '{print $2}'`; linkpp
+	ngctl name $ngif: $ifname
+	ifconfig $ngif name $ifname >/dev/null
+}
+
+ngbuddy_ifconfig_ether() {
+	ifname="$1"
+	seed="$1$2"
+	mac=$(echo -n "$seed" | sha1 | cut -c1-10)
+	ifconfig $ifname ether "02$mac"
+}
+
+
+# service ngbuddy create: add the eiface to the specified (or default) bridge
+ngbuddy_create_eiface() {
+	ngbuddy_init
+	ifname="$1"
+	bridge="$2"
+	if [ -z "$2" ] ; then
+		# TO-DO: Prefer bridge associated with the default route.
+		bridge="`echo $ngbuddy_bridge_list|awk '{print $1}'`"
+	fi
+	[ $LNUM = 0 ] && linkpp
+	ngbuddy_addif "$bridge" "$ifname"
+	case "${ngbuddy_set_mac}" in
+		[Nn][Oo] | '')	;;
+		[Yy][Ee][Ss])	ngbuddy_ifconfig_ether "$ifname" ;;
+		*)		ngbuddy_ifconfig_ether "$ifname" "$ngbuddy_set_mac" ;;
+	esac
+}
+
+ngbuddy_create() {
+	ngbuddy_create_eiface "$@"
+	sysrc ngbuddy_${bridge}_list+="$ifname"
+}
+
+ngbuddy_jail() {
+	ngbuddy_create_eiface "$@"
+}
+
+# service ngbuddy destroy: remove an eiface
+ngbuddy_shutdown_eiface() {
+	nodename="$1"
+	for bridge in $ngbuddy_bridge_list
+	do
+		eval list=\$ngbuddy_${bridge}_list
+		if echo $list|grep -qw $nodename
+		then
+			echo Removing $nodename from $bridge
+			ngctl shutdown "$nodename":
+		fi
+	done
+}
+
+ngbuddy_destroy() {
+	ngbuddy_shutdown_eiface "$@"
+	sysrc ngbuddy_${bridge}_list-="$nodename"
+}
+
+ngbuddy_unjail() {
+	if_name="$1"
+	jail_name="${2:-$1}"
+	ifconfig "$if_name" -vnet "$jail_name"
+	ngctl shutdown "${if_name}:"
+	#ngbuddy_shutdown_eiface "$if_name"
+}
+
+ngbuddy_bridge() {
+	bridge=$1
+	bridgeif=$2
+	[ -z "$LNUM" ] && ngbuddy_init
+
+	# Check for bridge name conflicts
+	brmatch=`echo $bridge|tr _ .`
+	if ifconfig -l|grep -wo "$brmatch">/dev/null
+	then
+		echo Bridge name $bridge conflicts with an existing interface.
+		return 1
+	fi
+
+	# If we get a second parameter, update the bridge rc var
+	if [ -n "$bridgeif" ]
+	then
+		eval ngbuddy_${bridge}_if=${bridgeif}
+		sysrc ngbuddy_${bridge}_if=${bridgeif}
+	fi
+
+	# If given an existing interface, bridge to it, otherwise
+	# create an eiface
+	eval linkif=\$ngbuddy_${bridge}_if
+	if [ -z "$linkif" ]
+	then
+		echo No interface given for bridge $bridge.
+		return 1
+	fi
+	linkmatch=`echo $linkif|tr _ .`
+	if ifconfig -l|grep -qw "$linkmatch"
+	then
+		ngbuddy_public $bridge
+	else
+		ngbuddy_private $bridge
+	fi
+	eval linklist=\"\$ngbuddy_${bridge}_list\"
+	[ -z "$linklist" ] && return
+	echo -n "Creating $bridge eiface nodes:"
+	for newif in $linklist
+	do
+		echo -n " $newif"
+		ngbuddy_addif $bridge $newif
+	done
+	echo
+}
+
+# TO-DO: Show a complete list of bridged connections if applicable.
+ngbuddy_shutdown_bridge() {
+	bridge="$1"
+	# TO-DO: We also need to check for bridges not recorded in rc.conf.
+	eval node_list=\$ngbuddy_${bridge}_list
+	if [ -n "$node_list" ]
+	then
+		echo -n $bridge is a bridge. First destroy:\
+		echo $node_list
+		return 1
+	fi
+	eval bridgeif=\$ngbuddy_${bridge}_if
+	if [ -n "$bridgeif" ]
+	then
+		iftype=`ngctl list|grep -w $bridgeif|cut -wf5`
+		if [ "$iftype" == "eiface" ]
+		then
+			echo "Shutdown $bridgeif"
+			ngctl shutdown "${bridgeif}:"
+		else
+		fi
+	fi
+	echo Shutdown bridge $bridge
+	if ngctl list|grep -wq $bridge
+	then
+		ngctl shutdown "$bridge":
+	fi
+	sysrc -x "ngbuddy_${bridge}_if"
+}
+
+# Create nodes and ifaces defined in rc.conf
+ngbuddy_start() {
+	ngbuddy_init
+	echo Starting $name.
+	if [ "$LNUM" -gt 0 ]
+	then
+		echo Netgraph already initialized with $LNUM links.
+		exit 1
+	fi
+	for bridge in $ngbuddy_bridge_list
+	do
+		ngbuddy_bridge $bridge
+	done
+	echo Created $LNUM links.
+}
+
+# Return a netgraph link count
+ngbuddy_status() {
+	ngbuddy_vmname
+	awk -f "${ngbuddy_share_dir}/ngbuddy-status.awk"
+}
+
+# Blindly lay waste to all netgraph nodes
+ngbuddy_stop() {
+	ngbuddy_init
+	if [ $LNUM = "0" ]
+	then
+		echo No links found.
+		exit 1
+	fi
+	ngctl list |\
+	awk '{print $2}'|\
+	xargs -tn1 -I% ngctl shutdown %: 2>/dev/null
+	echo Removed $LNUM links.
+	LNUM="" # In case this is a restart.
+}
+
+run_rc_command "$1" "$2" "$3"

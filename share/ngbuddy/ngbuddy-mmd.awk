@@ -1,8 +1,9 @@
 #!/usr/bin/awk -f
-# Draw a Mermaid graph of bridges & instance interfaces. Developed for hosts using vm-bhyve 1.5,
-# and Netgraph interface nodes. Assumes interface names in vnet are different from hosts.
+# Draw a Mermaid graph of bridges & instance interfaces. Developed for hosts
+# using vm-bhyve 1.5, and Netgraph interface nodes. Needs ng-buddy's vmname()
+# function name bhyve sockets.
 
-# You can't make a regex from a variable in awk?
+# This can probably be simplified in-awk with [^patterns]
 function is_member(list, item) {
 	"echo "list"|grep -Eo '\\<"item"\\>'|wc -l"|getline matches
 	return matches
@@ -15,7 +16,8 @@ function get_networks() {
 	}
 }
 
-# Using vm-bhyve to find interfaces as bhyvectl doesn't reveal this.
+# Using vm-bhyve to find interfaces as bhyvectl doesn't reveal this (that seems
+# like a pretty bad upstream issue).
 function get_vm_links() {
 	get_bridges = "|awk '/virtual-switch:/{print $2}'|xargs"
         while ("pgrep -lf bhyve|cut -wf3"|getline vm) {
@@ -24,7 +26,7 @@ function get_vm_links() {
 }
 
 function get_jail_links() {
-	# This gets if_bridge and tap, but not wg
+	# This will also show if_bridge and tap, but not wg
 	get_ifs = " ngctl list|awk '/Type: ether/{print $2}'|xargs"
 	while ("jls name"|getline jail) {
 		"jexec "jail get_ifs|getline jail_ifs[jail]
@@ -32,7 +34,8 @@ function get_jail_links() {
 }
 
 function get_ng_links() {
-	# Step through the netgraph list to find bridges and decuce which links are buried in vnet.
+	# Step through the netgraph list to find bridges and decuce which links
+	# are buried in vnet.
 	"ifconfig -lu"|getline host_up_ifs
 	"ifconfig -l"|getline host_ifs
 	while ("ngctl list -l"|getline) {
@@ -48,7 +51,7 @@ function get_ng_links() {
 			label[peer] = "IF"(++i)
 			peer_bridge[peer] = bridge
 
-			# clean this shit up
+			# TO-DO: Make this better
 			if ($5=="vmlink") { bridge_vm[bridge]=peer" "bridge_vm[bridge] }
 			if ($3=="ether") { ether[peer] = bridge }
 			else if ($3=="eiface") {
@@ -102,8 +105,8 @@ classDef JAIL fill:#f9ecf9;"
 	}
 
 
-	# I don't see how to match netgraph names to VM names, so we'll have to guess based on
-	# interface names.
+	# I don't see how to match netgraph names to VM names, so we'll have to
+	# guess based on interface names for now.
 	for (vm in vm_bridge) {
 		vm_label = "VM"++num_vms
 		bridge = vm_bridge[vm]
