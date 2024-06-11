@@ -15,7 +15,7 @@
 **service ng-buddy status**
 
 **service ng-buddy bridge** _bridge_ _interface_ \
-**service ng-buddy unbridge** _bridge
+**service ng-buddy unbridge** _bridge_
 
 **service ng-buddy jail** _interface_ [_bridge_]\
 **service ng-buddy unjail** _interface_ [_jail_]\
@@ -100,16 +100,16 @@ Subcommands are called using **service ng-buddy _SUBCOMMAND_**. Note that all co
 
 The above subcommands will use sysrc(8) to configure rc.conf with the following variables for persistent configuration on service restart or system reboot, which can also be edited manually.
 
-**ngb_enable=YES**
+**ngb_enable=**"_YES_"
 :    Enable the service.
 
-**ngb_BRIDGE_if="IF"**
+**ngb_BRIDGE_if=**"_IF_"
 :    Link a new _BRIDGE_ to interface _IF_. If _IF_ does not exist, create an ng_eiface device.
 
-**ngb_BRIDGE_list="IF1 IF2 ...**
+**ngb_BRIDGE_list=**"_IF1 IF2 ..._"
 :    Create additional ng_eiface devices attached to _BRIDGE_ at startup.
 
-**ngb_set_mac="** _YES_ | _SEED_ **"**
+**ngb_set_mac=**"_YES_|_SEED_"
 :    If set to _YES_, created ng_eiface hardware addresses will be determined from the interface name; this ensures the MAC stays consistent for the named interface regardless of the host it's generated on. Instead of _YES_, you may add a seed value, such as ${hostname} or a common seed to share among jail migration partners. If _NO_, the default auto-assignment will be used, which is more prone to MAC collisions.
 
 
@@ -117,21 +117,33 @@ The above subcommands will use sysrc(8) to configure rc.conf with the following 
 **/usr/local/etc/rc.d/ng-buddy**
 :    The Netgraph Buddy run control script.
 
-**/usr/local/share/ng-buddy/**
-:    Helper scripts for the **status** and **mermaid** subcommands.
+**/usr/local/share/ng-buddy/ng-buddy-status.awk**
+:    Helper for **service ng-buddy status**
+
+**/usr/local/share/ng-buddy/ng-buddy-mermain-js.awk**
+:    An alternative to **ngctl dot** that creates a Mermaid-JS color diagram of netgraph nodes.
 
 # NOTES
 
 These scripts were developed to assist with new netgraph features in **vm-bhyve 1.5+**, and were inspired by the **/usr/share/examples/jails/jng** example script and additional examples by Klara Systems.
 
+# EXAMPLES
+
+See **examples** at: https://github.com/bellhyve/netgraph-buddy
+
+After following the above **QUICK START EXAMPLE**: \
+- Append the **devfs.rules** example to **/etc/devfs.rules** \
+- Extract a FreeBSD **base.txz** in **/jail/my_jail** \
+- Copy the **jail_skel.conf** to **/etc/jail.conf.d/my_jail.conf** \
+- In **my_jail.conf**, change the jail name to **my_jail** \
+- Run: **service jail start my_jail** \
+
+This provides a simple framework for ZFS cloning jails and editing a single template line for rapid deployment of many VNET jails.
+
 # SEE ALSO
 
-netgraph(4), ng_bridge(4), ngctl(8), ng_eiface(4), ng_socket(4), vm(8)
+jail(8), netgraph(4), ng_bridge(4), ngctl(8), ng_eiface(4), ng_socket(4), vm(8)
 
 # HISTORY
 
-Netgraph Buddy (as "ngup") was originally developed as an internal tool for Bell Tower Integration in August 2022.
-
-# CONTRIBUTING
-
-To submit bug reports or contribute, see https://github.com/bellhyve/netgraph-buddy.
+Netgraph Buddy was originally developed as an internal tool for Bell Tower Integration in August 2022.

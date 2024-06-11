@@ -271,16 +271,16 @@ ngb_shutdown_bridge() {
 		iftype=`ngctl list|grep -w $bridgeif|cut -wf5`
 		if [ "$iftype" == "eiface" ]
 		then
-			#echo "Shutdown $bridgeif"
-			echo ngctl shutdown "$bridgeif":
+			echo "Shutdown $bridgeif"
 			ngctl shutdown "${bridgeif}:"
 		else
 		fi
 	fi
-	#echo Shutdown bridge $bridge
-	# TO-DO: Skip if bridge is already gone.
-	echo ngctl shutdown "$bridge":
-	ngctl shutdown "$bridge":
+	echo Shutdown bridge $bridge
+	if ngctl list|grep -wq $bridge
+	then
+		ngctl shutdown "$bridge":
+	fi
 	sysrc -x "ngb_${bridge}_if"
 }
 
@@ -304,8 +304,6 @@ ngb_start() {
 ngb_status() {
 	ngb_vmname
 	awk -f "${ngb_share_dir}/ng-buddy-status.awk"
-	ngb_init
-	echo Netgraph links: $LNUM
 }
 
 # Blindly lay waste to all netgraph nodes
