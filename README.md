@@ -48,7 +48,7 @@ The following commands will configure a system for netgraph in a way that is sui
 :    This command creates the above interfaces.
 
 **service ng-buddy vmconf**
-:    Add the our "public" and "private" bridges to the `vm(8)` configuration.
+:    Add the our "public" and "private" bridges to the vm(8) configuration.
 
 If you'd like to use host-only or NAT interface, you must configure the newly created **nghost0** interface. For example, you may want to set up IP addresses, a DNS resolver, and a DHCP server.
 
@@ -104,13 +104,13 @@ The above subcommands will use sysrc(8) to configure rc.conf with the following 
 :    Enable the service.
 
 **ngb_BRIDGE_if="IF"**
-:    Link a new BRIDGE to interface IF. If IF does not exist, create an ng_eiface device.
+:    Link a new _BRIDGE_ to interface _IF_. If _IF_ does not exist, create an ng_eiface device.
 
 **ngb_BRIDGE_list="IF1 IF2 ...**
-:    Create additional ng_eiface devices attached to BRIDGE.
+:    Create additional ng_eiface devices attached to _BRIDGE_ at startup.
 
 **ngb_set_mac="** _YES_ | _SEED_ **"**
-:    If YES, the assigned hardware address will be determined from the interface name. To prevent collisions with other Netgraph Buddy hosts on a physical interface bridge, choose a unique seed such as `${hostname}`.
+:    If set to _YES_, created ng_eiface hardware addresses will be determined from the interface name; this ensures the MAC stays consistent for the named interface regardless of the host it's generated on. Instead of _YES_, you may add a seed value, such as ${hostname} or a common seed to share among jail migration partners. If _NO_, the default auto-assignment will be used, which is more prone to MAC collisions.
 
 
 # FILES

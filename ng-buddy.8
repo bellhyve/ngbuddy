@@ -73,14 +73,15 @@ which you can modify before starting the service:
     ngb_enable=\[dq]YES\[dq]
     ngb_public_if=\[dq]em0\[dq]
     ngb_private_if=\[dq]nghost0\[dq]
+    ngb_set_mac=\[dq]NO\[dq]
 .EE
 .TP
 \f[B]service ng\-buddy start\f[R]
 This command creates the above interfaces.
 .TP
 \f[B]service ng\-buddy vmconf\f[R]
-Add the our \[lq]public\[rq] and \[lq]private\[rq] bridges to the
-\f[CR]vm(8)\f[R] configuration.
+Add the our \[lq]public\[rq] and \[lq]private\[rq] bridges to the vm(8)
+configuration.
 .PP
 If you\[cq]d like to use host\-only or NAT interface, you must configure
 the newly created \f[B]nghost0\f[R] interface.
@@ -160,17 +161,22 @@ system reboot, which can also be edited manually.
 Enable the service.
 .TP
 \f[B]ngb_BRIDGE_if=\[lq]IF\[rq]\f[R]
-Link a new BRIDGE to interface IF.
-If IF does not exist, create an ng_eiface device.
+Link a new \f[I]BRIDGE\f[R] to interface \f[I]IF\f[R].
+If \f[I]IF\f[R] does not exist, create an ng_eiface device.
 .TP
 \f[B]ngb_BRIDGE_list=\[lq]IF1 IF2 \&...\f[R]
-Create additional ng_eiface devices attached to BRIDGE.
+Create additional ng_eiface devices attached to \f[I]BRIDGE\f[R] at
+startup.
 .TP
 \f[B]ngb_set_mac=\[lq]\f[R] \f[I]YES\f[R] | \f[I]SEED\f[R] \f[B]\[lq]\f[R]
-If YES, the assigned hardware address will be determined from the
-interface name.
-To prevent collisions with other Netgraph Buddy hosts on a physical
-interface bridge, choose a unique seed such as \f[CR]${hostname}\f[R].
+If set to \f[I]YES\f[R], created ng_eiface hardware addresses will be
+determined from the interface name; this ensures the MAC stays
+consistent for the named interface regardless of the host it\[cq]s
+generated on.
+Instead of \f[I]YES\f[R], you may add a seed value, such as ${hostname}
+or a common seed to share among jail migration partners.
+If \f[I]NO\f[R], the default auto\-assignment will be used, which is
+more prone to MAC collisions.
 .SH FILES
 .TP
 \f[B]/usr/local/etc/rc.d/ng\-buddy\f[R]
