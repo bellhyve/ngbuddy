@@ -1,24 +1,24 @@
 #!/bin/sh
 
-# PROVIDE:	ngb
+# PROVIDE:	ngbuddy
 # REQUIRE:	FILESYSTEMS
 # BEFORE:	NETWORKING
 
-# See ng-buddy(8) for confiugration details. For manual configuration,
+# See ngbuddy(8) for confiugration details. For manual configuration,
 # add the following to /etc/rc.conf[.local]:
 #
-# ngb_enable="YES"
-# ngb_BRIDGE_if="IF"
+# ngbuddy_enable="YES"
+# ngbuddy_BRIDGE_if="IF"
 #	Link a new BRIDGE to interface IF.
 #	If IF does not exist, create an ng_eiface device.
-# ngb_BRIDGE_list="IF1 IF2 ..."
+# ngbuddy_BRIDGE_list="IF1 IF2 ..."
 #	Create additional ng_eiface devices attached to BRIDGE.
 
 . /etc/rc.subr
 
-name="ngb"
+name="ngbuddy"
 desc="configures netgraph bridge and eiface devices"
-rcvar="ngb_enable"
+rcvar="ngbuddy_enable"
 
 enable_cmd="${name}_enable"
 start_cmd="${name}_start"
@@ -34,10 +34,10 @@ unbridge_cmd="${name}_shutdown_bridge"
 unjail_cmd="${name}_unjail"
 extra_commands="bridge create destroy jail unbridge unjail vmconf vmname"
 
-load_rc_config "$ngb"
+load_rc_config "$ngbuddy"
 # TO-DO: Find a more elegant way to get the dynamic "bridge_name" list.
-: ${ngb_bridge_list:="`list_vars 'ngb_*_if'|sed -E 's/^ngb_|_if$//g'|xargs`"}
-: ${ngb_share_dir:="/usr/local/share/ng-buddy"}
+: ${ngbuddy_bridge_list:="`list_vars 'ngbuddy_*_if'|sed -E 's/^ngbuddy_|_if$//g'|xargs`"}
+: ${ngbuddy_share_dir:="/usr/local/share/ngbuddy"}
 
 # Count netgraph links
 linkpp() {
@@ -46,23 +46,23 @@ linkpp() {
 
 # Make a "public" bridge to the NIC containing the default gateway, and create a
 # "private" bridge linked to eiface nghost0.
-ngb_enable() {
-	sysrc ngb_enable=YES
-	if [ -n "$ngb_bridge_list" ]
+ngbuddy_enable() {
+	sysrc ngbuddy_enable=YES
+	if [ -n "$ngbuddy_bridge_list" ]
 	then
 		exit 0
 	else
 		echo Adding default bridges.
 	fi
-	: ${ngb_public_if:="`netstat -rn|grep default|cut -wf4|tr . _`"}
-	: ${ngb_private_if:="nghost0"}
-	sysrc ngb_public_if="$ngb_public_if"
-	sysrc ngb_private_if="$ngb_private_if"
-	sysrc ngb_set_mac="NO"
+	: ${ngbuddy_public_if:="`netstat -rn|grep default|cut -wf4|tr . _`"}
+	: ${ngbuddy_private_if:="nghost0"}
+	sysrc ngbuddy_public_if="$ngbuddy_public_if"
+	sysrc ngbuddy_private_if="$ngbuddy_private_if"
+	sysrc ngbuddy_set_mac="NO"
 }
 
-# Configure vm-bhyve with ngb bridges (version 1.5+ required)
-ngb_vmname() {
+# Configure vm-bhyve with ngbuddy bridges (version 1.5+ required)
+ngbuddy_vmname() {
 	case "$vm_dir" in
 		zfs:*)	vm_dir="`echo "$vm_dir"|cut -d: -f2`"
 			vm_conf="`zfs get -H mountpoint "$vm_dir"|cut -wf3`" ;;
@@ -80,7 +80,7 @@ ngb_vmname() {
 	done
 }
 
-ngb_vmconf() {
+ngbuddy_vmconf() {
 	case "$vm_dir" in
 		zfs:*)	vm_dir="`echo "$vm_dir"|cut -d: -f2`"
 			vm_conf="`zfs get -H mountpoint "$vm_dir"|cut -wf3`" ;;
@@ -91,15 +91,15 @@ ngb_vmconf() {
 	vm_conf="$vm_conf/.config/system.conf"
 	cp -p "$vm_conf" "$vm_bak"
 	echo Configuring $vm_conf:
-	sysrc -f "$vm_conf" switch_list+="$ngb_bridge_list"
-	for ngb_bridge in $ngb_bridge_list
+	sysrc -f "$vm_conf" switch_list+="$ngbuddy_bridge_list"
+	for ngbuddy_bridge in $ngbuddy_bridge_list
 	do
-		sysrc -f "$vm_conf" type_$ngb_bridge=netgraph
+		sysrc -f "$vm_conf" type_$ngbuddy_bridge=netgraph
 	done
 }
 
 # Make sure netgraph is loaded and count its links.
-ngb_init() {
+ngbuddy_init() {
 	[ -n "$LNUM" ] && linkpp
 	kldload -nq ng_ether ng_bridge
 	LNUM=`ngctl list -l|awk -F'.*link| ' '/link/{if($2>x||x=="")x=$2}END{print x}'`
@@ -112,9 +112,9 @@ ngb_init() {
 }
 
 # Enable a private bridge and attach a new eiface.
-ngb_private() {
+ngbuddy_private() {
 	bridge=$1
-	eval linkif=\$ngb_${bridge}_if
+	eval linkif=\$ngbuddy_${bridge}_if
 	ngctl mkpeer eiface ether ether
 	ngeth=`ngctl list|cut -wf3|grep '^ngeth'|sort -n|tail -1`
 	ngctl name $ngeth: $linkif
@@ -124,9 +124,9 @@ ngb_private() {
 }
 
 # Enable a public bridge and attach an existing NIC
-ngb_public() {
+ngbuddy_public() {
 	bridge=$1
-	eval linkif=\$ngb_${bridge}_if
+	eval linkif=\$ngbuddy_${bridge}_if
 	ngctl msg $linkif: setpromisc 1
 	ngctl msg $linkif: setautosrc 0
 	ngctl mkpeer $linkif: bridge lower link${LNUM}; linkpp
@@ -136,7 +136,7 @@ ngb_public() {
 }
 
 # Attach a new eiface to the specified bridge
-ngb_addif() {
+ngbuddy_addif() {
 	bridge=$1
 	ifname=$2
 	ifconfig $ifname > /dev/null 2>&1 && return
@@ -146,7 +146,7 @@ ngb_addif() {
 	ifconfig $ngif name $ifname >/dev/null
 }
 
-ngb_ifconfig_ether() {
+ngbuddy_ifconfig_ether() {
 	ifname="$1"
 	seed="$1$2"
 	mac=$(echo -n "$seed" | sha1 | cut -c1-10)
@@ -154,39 +154,39 @@ ngb_ifconfig_ether() {
 }
 
 
-# service ngb create: add the eiface to the specified (or default) bridge
-ngb_create_eiface() {
-	ngb_init
+# service ngbuddy create: add the eiface to the specified (or default) bridge
+ngbuddy_create_eiface() {
+	ngbuddy_init
 	ifname="$1"
 	bridge="$2"
 	if [ -z "$2" ] ; then
 		# TO-DO: Prefer bridge associated with the default route.
-		bridge="`echo $ngb_bridge_list|awk '{print $1}'`"
+		bridge="`echo $ngbuddy_bridge_list|awk '{print $1}'`"
 	fi
 	[ $LNUM = 0 ] && linkpp
-	ngb_addif "$bridge" "$ifname"
-	case "${ngb_set_mac}" in
+	ngbuddy_addif "$bridge" "$ifname"
+	case "${ngbuddy_set_mac}" in
 		[Nn][Oo] | '')	;;
-		[Yy][Ee][Ss])	ngb_ifconfig_ether "$ifname" ;;
-		*)		ngb_ifconfig_ether "$ifname" "$ngb_set_mac" ;;
+		[Yy][Ee][Ss])	ngbuddy_ifconfig_ether "$ifname" ;;
+		*)		ngbuddy_ifconfig_ether "$ifname" "$ngbuddy_set_mac" ;;
 	esac
 }
 
-ngb_create() {
-	ngb_create_eiface "$@"
-	sysrc ngb_${bridge}_list+="$ifname"
+ngbuddy_create() {
+	ngbuddy_create_eiface "$@"
+	sysrc ngbuddy_${bridge}_list+="$ifname"
 }
 
-ngb_jail() {
-	ngb_create_eiface "$@"
+ngbuddy_jail() {
+	ngbuddy_create_eiface "$@"
 }
 
-# service ngb destroy: remove an eiface
-ngb_shutdown_eiface() {
+# service ngbuddy destroy: remove an eiface
+ngbuddy_shutdown_eiface() {
 	nodename="$1"
-	for bridge in $ngb_bridge_list
+	for bridge in $ngbuddy_bridge_list
 	do
-		eval list=\$ngb_${bridge}_list
+		eval list=\$ngbuddy_${bridge}_list
 		if echo $list|grep -qw $nodename
 		then
 			echo Removing $nodename from $bridge
@@ -195,23 +195,23 @@ ngb_shutdown_eiface() {
 	done
 }
 
-ngb_destroy() {
-	ngb_shutdown_eiface "$@"
-	sysrc ngb_${bridge}_list-="$nodename"
+ngbuddy_destroy() {
+	ngbuddy_shutdown_eiface "$@"
+	sysrc ngbuddy_${bridge}_list-="$nodename"
 }
 
-ngb_unjail() {
+ngbuddy_unjail() {
 	if_name="$1"
 	jail_name="${2:-$1}"
 	ifconfig "$if_name" -vnet "$jail_name"
 	ngctl shutdown "${if_name}:"
-	#ngb_shutdown_eiface "$if_name"
+	#ngbuddy_shutdown_eiface "$if_name"
 }
 
-ngb_bridge() {
+ngbuddy_bridge() {
 	bridge=$1
 	bridgeif=$2
-	[ -z "$LNUM" ] && ngb_init
+	[ -z "$LNUM" ] && ngbuddy_init
 
 	# Check for bridge name conflicts
 	brmatch=`echo $bridge|tr _ .`
@@ -224,13 +224,13 @@ ngb_bridge() {
 	# If we get a second parameter, update the bridge rc var
 	if [ -n "$bridgeif" ]
 	then
-		eval ngb_${bridge}_if=${bridgeif}
-		sysrc ngb_${bridge}_if=${bridgeif}
+		eval ngbuddy_${bridge}_if=${bridgeif}
+		sysrc ngbuddy_${bridge}_if=${bridgeif}
 	fi
 
 	# If given an existing interface, bridge to it, otherwise
 	# create an eiface
-	eval linkif=\$ngb_${bridge}_if
+	eval linkif=\$ngbuddy_${bridge}_if
 	if [ -z "$linkif" ]
 	then
 		echo No interface given for bridge $bridge.
@@ -239,33 +239,33 @@ ngb_bridge() {
 	linkmatch=`echo $linkif|tr _ .`
 	if ifconfig -l|grep -qw "$linkmatch"
 	then
-		ngb_public $bridge
+		ngbuddy_public $bridge
 	else
-		ngb_private $bridge
+		ngbuddy_private $bridge
 	fi
-	eval linklist=\"\$ngb_${bridge}_list\"
+	eval linklist=\"\$ngbuddy_${bridge}_list\"
 	[ -z "$linklist" ] && return
 	echo -n "Creating $bridge eiface nodes:"
 	for newif in $linklist
 	do
 		echo -n " $newif"
-		ngb_addif $bridge $newif
+		ngbuddy_addif $bridge $newif
 	done
 	echo
 }
 
 # TO-DO: Show a complete list of bridged connections if applicable.
-ngb_shutdown_bridge() {
+ngbuddy_shutdown_bridge() {
 	bridge="$1"
 	# TO-DO: We also need to check for bridges not recorded in rc.conf.
-	eval node_list=\$ngb_${bridge}_list
+	eval node_list=\$ngbuddy_${bridge}_list
 	if [ -n "$node_list" ]
 	then
 		echo -n $bridge is a bridge. First destroy:\
 		echo $node_list
 		return 1
 	fi
-	eval bridgeif=\$ngb_${bridge}_if
+	eval bridgeif=\$ngbuddy_${bridge}_if
 	if [ -n "$bridgeif" ]
 	then
 		iftype=`ngctl list|grep -w $bridgeif|cut -wf5`
@@ -281,34 +281,34 @@ ngb_shutdown_bridge() {
 	then
 		ngctl shutdown "$bridge":
 	fi
-	sysrc -x "ngb_${bridge}_if"
+	sysrc -x "ngbuddy_${bridge}_if"
 }
 
 # Create nodes and ifaces defined in rc.conf
-ngb_start() {
-	ngb_init
+ngbuddy_start() {
+	ngbuddy_init
 	echo Starting $name.
 	if [ "$LNUM" -gt 0 ]
 	then
 		echo Netgraph already initialized with $LNUM links.
 		exit 1
 	fi
-	for bridge in $ngb_bridge_list
+	for bridge in $ngbuddy_bridge_list
 	do
-		ngb_bridge $bridge
+		ngbuddy_bridge $bridge
 	done
 	echo Created $LNUM links.
 }
 
 # Return a netgraph link count
-ngb_status() {
-	ngb_vmname
-	awk -f "${ngb_share_dir}/ng-buddy-status.awk"
+ngbuddy_status() {
+	ngbuddy_vmname
+	awk -f "${ngbuddy_share_dir}/ngbuddy-status.awk"
 }
 
 # Blindly lay waste to all netgraph nodes
-ngb_stop() {
-	ngb_init
+ngbuddy_stop() {
+	ngbuddy_init
 	if [ $LNUM = "0" ]
 	then
 		echo No links found.

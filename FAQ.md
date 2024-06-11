@@ -1,6 +1,6 @@
 # Netgraph Buddy FAQ
 
-This FAQ is adapapted from the previous release notes. Please see `man ng-buddy` (also available in the repo as README.md) for detailed usage instructions.
+This FAQ is adapapted from the previous release notes. Please see `man ngbuddy` (also available in the repo as README.md) for detailed usage instructions.
 
 ## Old Notes
 
@@ -18,19 +18,4 @@ It is generally a good practice to keep bridge names consistent between failover
 
 **Can this coexist with my if_bridge (epair/tap) setup?**
 
-You bet; an if_bridge interface and eiface (Netgraph interface) can share a network through a bridge, including a physical or private network with DHCP. Try `ifconfig bridge0 addm nghost0` to link your "private" ngup interfaces to your if_bridge epairs/taps/etc. This is handy for an in-place virtual jail migration from epair to netgraph.
-
-**How do I make a PNG Netgraph map of my insane ngup configuration?**
-
-Use the graphviz package:
-
-`ngctl dot | dot -T png -o map.png`
-
-Also see the script in the Netgraph Buddy repo, `ng-buddy-mermaid.awk` to create a Mermaid-JS diagram that is vm-bhyve and jail name aware: https://github.com/bellhyve/netgraph-buddy/blob/dev/share/ng-buddy/ng-buddy-mermaid-js.awk
-
-This is likely to be published in the FreeBSD port soon.
-
-
-**Why does this file look like you've never used markdown before?**
-
-¯\_(ツ)_/¯
+Yes; an if_bridge interface and eiface (Netgraph interface) can share a network through a bridge, including a physical or private network with DHCP. Try `ifconfig bridge0 addm nghost0` to link your "private" ngup interfaces to your if_bridge epairs/taps/etc. This is handy for an in-place virtual jail migration from epair to netgraph.
