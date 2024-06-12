@@ -162,6 +162,25 @@ ngbuddy_set_mac_prefix="02"
 
 **Example 3: Initial status of the above configuration**
 
+```sh
+tenantlan
+  igb1 (upper): RX 0B, TX 0B
+  igb1 (lower): RX 0B, TX 0B
+tenantwan
+  ix1 (upper): RX 0B, TX 0B
+  ix1 (lower): RX 0B, TX 0B
+lan
+  igb0 (upper): RX 0B, TX 0B
+  igb0 (lower): RX 0B, TX 0B
+private0
+  j2p0: RX 0B, TX 0B
+  j1p0: RX 0B, TX 0B
+  ng0: RX 0B, TX 0B
+private1
+  j2p1: RX 0B, TX 0B
+  j1p1: RX 0B, TX 0B
+  ng1: RX 0B, TX 0B
+```
 
 
 # SEE ALSO
