@@ -148,7 +148,7 @@ This provides a simple framework for cloning jails and editing a single template
 
 ```sh
 ngbuddy_enable="YES"
-ngbuddy_wan="ix0"
+ngbuddy_wan_if="ix0"
 ngbuddy_tenantwan_if="ix1"
 ngbuddy_lan_if="igb0"
 ngbuddy_tenantlan_if="igb1"
@@ -163,25 +163,29 @@ ngbuddy_set_mac_prefix="02"
 **Example 3: Initial status of the above configuration**
 
 ```sh
+private1
+  j2p1: RX 0B, TX 0B
+  j1p1: RX 0B, TX 0B
+  ng1: RX 0B, TX 0B
 tenantlan
   igb1 (upper): RX 0B, TX 0B
   igb1 (lower): RX 0B, TX 0B
 tenantwan
   ix1 (upper): RX 0B, TX 0B
   ix1 (lower): RX 0B, TX 0B
+wan
+  ix0 (upper): RX 90.43 KB, TX 127.50 KB
+  ix0 (lower): RX 127.50 KB, TX 88.70 KB
 lan
-  igb0 (upper): RX 0B, TX 0B
-  igb0 (lower): RX 0B, TX 0B
+  hmm1: RX 127.50 KB, TX 88.70 KB
+  hmm0: RX 127.50 KB, TX 88.70 KB
+  igb0 (upper): RX 127.50 KB, TX 88.70 KB
+  igb0 (lower): RX 127.50 KB, TX 88.70 KB
 private0
-  j2p0: RX 0B, TX 0B
-  j1p0: RX 0B, TX 0B
-  ng0: RX 0B, TX 0B
-private1
-  j2p1: RX 0B, TX 0B
-  j1p1: RX 0B, TX 0B
-  ng1: RX 0B, TX 0B
+  j2p0: RX 127.50 KB, TX 88.70 KB
+  j1p0: RX 127.50 KB, TX 88.70 KB
+  ng0: RX 127.50 KB, TX 88.70 KB
 ```
-
 
 # SEE ALSO
 
