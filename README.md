@@ -103,11 +103,11 @@ The following variables can be manually configured Some of the above subcommands
 _ngbuddy_enable_
 :    Set to _YES_ to enable the service. 
 
-_ngbuddy_(_BRIDGE_)_if_
-:    Link a new ng_bridge(4) device named _BRIDGE_ to the indicated interface, e.g., _eth0_. If the interface already exists, link it to the new bridge and disable LRO/TSO. If the interface does not exist, create it as an ng_eiface(4) device.
+_ngbuddy\_(_BRIDGE_)\_if_
+:    Link a new ng_bridge(4) device named _BRIDGE_ to the indicated interface, e.g., _eth0_. If the interface already exists, link it to the new bridge and disable LRO/TSO. If the interface does not exist, create it as an ng_eiface(4) device. This variable will be set with the **bridge** and **unbridge** subcommands.
 
-_ngbuddy_(_BRIDGE_)_list_
-:    A space delimited list of additional ng_eiface(4) devices that will be attached to _BRIDGE_ at startup.
+_ngbuddy\_(_BRIDGE_)\_list_
+:    A space delimited list of additional ng_eiface(4) devices that will be attached to _BRIDGE_ at startup. This variable will be set with the **create** and **destroy** subcommands.
 
 _ngbuddy_set_mac_
 :    If set to _YES_, created ng_eiface hardware addresses will be determined only from a hash of the interface name; this ensures each interface's MAC address stays consistent between hosts. If set to another string, such as a host or domain name, add that seed to the MAC address generator. The default behavior will used FreeBSD's default MAC address generator, which is prone to MAC address collisions in large networks.
@@ -131,7 +131,9 @@ These scripts were developed to assist with new netgraph features in **vm-bhyve 
 
 # EXAMPLES
 
-See **examples** at: https://github.com/bellhyve/netgraph-buddy
+**Example 1: Quickly deploy VNET jails with netgraph using jail.conf.d**
+
+See the files in **examples** at: https://github.com/bellhyve/netgraph-buddy
 
 After following the above **QUICK START EXAMPLE**: \
 - Append the **devfs.rules** example to **/etc/devfs.rules** \
@@ -141,6 +143,26 @@ After following the above **QUICK START EXAMPLE**: \
 - Run: **service jail start my_jail** \
 
 This provides a simple framework for cloning jails and editing a single template line for rapid deployment of many VNET jails.
+
+**Example 2: An rc.conf example for a slightly more complex setup**
+
+```sh
+ngbuddy_enable="YES"
+ngbuddy_wan="ix0"
+ngbuddy_tenantwan_if="ix1"
+ngbuddy_lan_if="igb0"
+ngbuddy_tenantlan_if="igb1"
+ngbuddy_private0_if="ng0"
+ngbuddy_private0_list="j1p0 j2p1"
+ngbuddy_private1_if="ng1"
+ngbuddy_private1_list="j1p1 j2p1"
+ngbuddy_set_mac="belltower"
+ngbuddy_set_mac_prefix="02"
+```
+
+**Example 3: Initial status of the above configuration**
+
+
 
 # SEE ALSO
 

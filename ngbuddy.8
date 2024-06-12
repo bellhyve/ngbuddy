@@ -2,7 +2,7 @@
 .\"
 .TH "ngbuddy" "8" "July 8, 2024" "" "System Manager\[cq]s Manual"
 .SH NAME
-\f[B]ngbuddy\f[R] \- simplified netgraph(4) manager for jail(8) and
+\f[B]ngbuddy\f[R] \- Simplified netgraph(4) manager for jail(8) and
 bhyve(8)
 .SH SYNOPSIS
 \f[B]service ngbuddy enable\f[R]
@@ -72,7 +72,6 @@ which you can modify before starting the service:
     ngbuddy_enable=\[dq]YES\[dq]
     ngbuddy_public_if=\[dq]em0\[dq]
     ngbuddy_private_if=\[dq]nghost0\[dq]
-    ngbuddy_set_mac=\[dq]NO\[dq]
 .EE
 .TP
 \f[B]service ngbuddy start\f[R]
@@ -94,88 +93,102 @@ See the \f[B]jail_skel.conf\f[R] for assistance configuring jails.
 .SH SUBCOMMANDS
 Subcommands are called using \f[B]service ngbuddy
 \f[BI]SUBCOMMAND\f[B]\f[R].
-Note that all commands rely on \f[B]ngctl(8)\f[R] and require root
-permissions.
+Note that all commands rely on ngctl(8) and require root permissions.
 .TP
 \f[B]enable\f[R]
 Create a basic default \f[B]ngbuddy\f[R] configuration and enable the
 service.
 .TP
 \f[B]start\f[R]
-Load the \f[B]ng_bridge(4)\f[R] and \f[B]ng_eiface(4)\f[R] options
-present in \f[B]rc.conf\f[R].
+Load the ng_bridge(4) and ng_eiface(4) options configured in
+\f[B]rc.conf\f[R].
+See \f[I]RC.CONF VARIABLES\f[R] below.
 .TP
 \f[B]stop\f[R]
-Destroy all \f[B]ng_bridge(4)\f[R] and \f[B]ng_eiface(4)\f[R] devices,
-regardless of whether they were created with \f[B]ngbuddy\f[R] or not.
+Destroy all ng_bridge(4) and ng_eiface(4) devices, regardless of whether
+they were created with \f[B]ngbuddy\f[R] or not.
 .TP
 \f[B]restart\f[R]
 Stop, then start.
 .TP
 \f[B]status\f[R]
-Print a list of \f[B]ng_bridge(4)\f[R], \f[B]ng_eiface(4)\f[R], and
-\f[B]ng_socket(4)\f[R] devices and basic usage statistics.
+Print a list of ng_bridge(4), ng_eiface(4), and ng_socket(4) devices and
+basic usage statistics.
 .TP
-\f[B]service ngbuddy bridge\f[R] \f[I]bridge\f[R] \f[I]interface\f[R]
+\f[B]bridge\f[R] \f[I]bridge\f[R] \f[I]interface\f[R]
 Create a bridge and an associated \f[B]rc.conf\f[R] entry.
 If the \f[I]interface\f[R] exists, \f[I]bridge\f[R] will be associated
 with it.
-Otherwise, \f[I]interface\f[R] will be created as a new
-\f[B]ng_eiface(4)\f[R] device.
+Otherwise, \f[I]interface\f[R] will be created as a new ng_eiface(4)
+device.
 .TP
-\f[B]service ngbuddy unbridge\f[R] \f[I]bridge\f[R]
+\f[B]unbridge\f[R] \f[I]bridge\f[R]
 Remove the indicated bridge from netgraph and \f[B]rc.conf\f[R].
 This operation will fail if devices appear to be attached to it.
 .TP
-\f[B]service ngbuddy jail\f[R] \f[I]interface\f[R] [\f[I]bridge\f[R]]
-Create a new \f[B]ng_eiface(4)\f[R] associated with the indicated
+\f[B]jail\f[R] \f[I]interface\f[R] [\f[I]bridge\f[R]]
+Create a new ng_eiface(4) associated with the indicated
 \f[I]bridge\f[R].
+If only one ng_bridge(4) is present, \f[I]bridge\f[R] may be omitted.
 .TP
-\f[B]service ngbuddy unjail\f[R] \f[I]interface\f[R] [\f[I]jail\f[R]]
-Remove an \f[B]ng_eiface(4)\f[R] associated with the indicated
-\f[I]jail\f[R].
+\f[B]unjail\f[R] \f[I]interface\f[R] [\f[I]jail\f[R]]
+Remove an ng_eiface(4) associated with the indicated \f[I]jail\f[R].
+If the \f[I]interface\f[R] matches the jail name, \f[I]jail\f[R] may be
+omitted.
 .TP
-\f[B]service ngbuddy create\f[R] \f[I]interface\f[R] [\f[I]bridge\f[R]]
-Create a new \f[B]ng_eiface(4)\f[R] associated with the indicated
-\f[I]bridge\f[R] and add it to \f[B]rc.conf\f[R] so it will be created
-on startup.
+\f[B]create\f[R] \f[I]interface\f[R] [\f[I]bridge\f[R]]
+Create a new ng_eiface(4) associated with the indicated \f[I]bridge\f[R]
+and add it to \f[B]rc.conf\f[R] so it will be created on startup.
+If only one ng_bridge(4) is present, \f[I]bridge\f[R] may be omitted.
 .TP
-\f[B]service ngbuddy destroy\f[R] \f[I]interface\f[R]
-Remove an \f[B]ng_eiface(4)\f[R] associated with the indicated
-\f[I]jail\f[R] and remove it from \f[B]rc.conf\f[R].
+\f[B]destroy\f[R] \f[I]interface\f[R]
+Remove the indicated ng_eiface(4) and remove it from \f[B]rc.conf\f[R].
 .TP
-\f[B]service ngbuddy vmconf\f[R]
-Add the bridges in \f[B]rc.conf\f[R] to the \f[B]vm(8)\f[R]
-configuration.
+\f[B]vmconf\f[R]
+Add the bridges configured in \f[B]rc.conf\f[R] to the vm(8)
+configuration, e.g., \f[B]/vm/.config/system.conf\f[R].
 .TP
-\f[B]service ngbuddy vmname\f[R]
-Name \f[B]ng_socket(4)\f[R] devices associated with bhyve instances
-running via \f[B]vm(8)\f[R].
+\f[B]vmname\f[R]
+Name ng_socket(4) devices associated with bhyve instances running via
+vm(8).
 .SH RC.CONF VARIABLES
-The above subcommands will use sysrc(8) to configure rc.conf with the
-following variables for persistent configuration on service restart or
-system reboot, which can also be edited manually.
+The following variables can be manually configured Some of the above
+subcommands will use sysrc(8) to configure rc.conf with the following
+variables for persistent configuration on service restart or system
+reboot, which can also be edited manually.
 .TP
-\f[B]ngbuddy_enable=\f[R]\[rq]\f[I]YES\f[R]\[rq]
-Enable the service.
+\f[I]ngbuddy_enable\f[R]
+Set to \f[I]YES\f[R] to enable the service.
 .TP
-\f[B]ngbuddy_BRIDGE_if=\f[R]\[rq]\f[I]IF\f[R]\[rq]
-Link a new \f[I]BRIDGE\f[R] to interface \f[I]IF\f[R].
-If \f[I]IF\f[R] does not exist, create an ng_eiface device.
+\f[I]ngbuddy_(\f[R]BRIDGE\f[I])_if\f[R]
+Link a new ng_bridge(4) device named \f[I]BRIDGE\f[R] to the indicated
+interface, e.g., \f[I]eth0\f[R].
+If the interface already exists, link it to the new bridge and disable
+LRO/TSO.
+If the interface does not exist, create it as an ng_eiface(4) device.
+This variable will be set with the \f[B]bridge\f[R] and
+\f[B]unbridge\f[R] subcommands.
 .TP
-\f[B]ngbuddy_BRIDGE_list=\f[R]\[rq]\f[I]IF1 IF2 \&...\f[R]\[rq]
-Create additional ng_eiface devices attached to \f[I]BRIDGE\f[R] at
-startup.
+\f[I]ngbuddy_(\f[R]BRIDGE\f[I])_list\f[R]
+A space delimited list of additional ng_eiface(4) devices that will be
+attached to \f[I]BRIDGE\f[R] at startup.
+This variable will be set with the \f[B]create\f[R] and
+\f[B]destroy\f[R] subcommands.
 .TP
-\f[B]ngbuddy_set_mac=\f[R]\[rq]\f[I]YES\f[R]|\f[I]SEED\f[R]\[rq]
+\f[I]ngbuddy_set_mac\f[R]
 If set to \f[I]YES\f[R], created ng_eiface hardware addresses will be
-determined from the interface name; this ensures the MAC stays
-consistent for the named interface regardless of the host it\[cq]s
-generated on.
-Instead of \f[I]YES\f[R], you may add a seed value, such as ${hostname}
-or a common seed to share among jail migration partners.
-If \f[I]NO\f[R], the default auto\-assignment will be used, which is
-more prone to MAC collisions.
+determined only from a hash of the interface name; this ensures each
+interface\[cq]s MAC address stays consistent between hosts.
+If set to another string, such as a host or domain name, add that seed
+to the MAC address generator.
+The default behavior will used FreeBSD\[cq]s default MAC address
+generator, which is prone to MAC address collisions in large networks.
+.TP
+\f[I]ngbuddy_set_mac_prefix\f[R]
+Override the default MAC address prefix of \f[B]58:9C:FC\f[R] (the OUI
+of the FreeBSD Foundation).
+For example, you can set \f[I]ngbuddy_set_mac_prefix=\[lq]02\[rq]\f[R]
+to minimize the risk of collisions.
 .SH FILES
 .TP
 \f[B]/usr/local/etc/rc.d/ngbuddy\f[R]
@@ -193,7 +206,11 @@ These scripts were developed to assist with new netgraph features in
 \f[B]/usr/share/examples/jails/jng\f[R] example script and additional
 examples by Klara Systems.
 .SH EXAMPLES
-See \f[B]examples\f[R] at: https://github.com/bellhyve/netgraph\-buddy
+\f[B]Example 1: Quickly deploy VNET jails with netgraph using
+jail.conf.d\f[R]
+.PP
+See the files in \f[B]examples\f[R] at:
+https://github.com/bellhyve/netgraph\-buddy
 .PP
 After following the above \f[B]QUICK START EXAMPLE\f[R]:
 .PD 0
@@ -224,11 +241,30 @@ After following the above \f[B]QUICK START EXAMPLE\f[R]:
 .PP
 This provides a simple framework for cloning jails and editing a single
 template line for rapid deployment of many VNET jails.
+.PP
+\f[B]Example 2: An rc.conf example for a slightly more complex
+setup\f[R]
+.IP
+.EX
+ngbuddy_enable=\[dq]YES\[dq]
+ngbuddy_wan=\[dq]ix0\[dq]
+ngbuddy_tenantwan_if=\[dq]ix1\[dq]
+ngbuddy_lan_if=\[dq]igb0\[dq]
+ngbuddy_tenantlan_if=\[dq]igb1\[dq]
+ngbuddy_private0_if=\[dq]ng0\[dq]
+ngbuddy_private0_list=\[dq]j1p0 j2p1\[dq]
+ngbuddy_private1_if=\[dq]ng1\[dq]
+ngbuddy_private1_list=\[dq]j1p1 j2p1\[dq]
+ngbuddy_set_mac=\[dq]belltower\[dq]
+ngbuddy_set_mac_prefix=\[dq]02\[dq]
+.EE
+.PP
+\f[B]Example 3: Initial status of the above configuration\f[R]
 .SH SEE ALSO
 jail(8), netgraph(4), ng_bridge(4), ngctl(8), ng_eiface(4),
 ng_socket(4), vm(8)
 .SH HISTORY
 Netgraph Buddy was originally developed as an internal tool for Bell
-Tower Integration in August 2022.
+Tower Integration\[cq]s private cloud in August 2022.
 .SH AUTHORS
 Daniel J. Bell.
