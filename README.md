@@ -4,7 +4,7 @@
 
 # NAME
 
-**ngbuddy** - simplified netgraph(4) manager for jail(8) and bhyve(8)
+**ngbuddy** - Simplified netgraph(4) manager for jail(8) and bhyve(8)
 
 # SYNOPSIS
 
@@ -17,9 +17,9 @@
 **service ngbuddy bridge** _bridge_ _interface_ \
 **service ngbuddy unbridge** _bridge_
 
-**service ngbuddy jail** _interface_ [_bridge_]\
-**service ngbuddy unjail** _interface_ [_jail_]\
-**service ngbuddy create** _interface_ [_bridge_]\
+**service ngbuddy jail** _interface_ [_bridge_] \
+**service ngbuddy unjail** _interface_ [_jail_] \
+**service ngbuddy create** _interface_ [_bridge_] \
 **service ngbuddy destroy** _interface_
 
 **service ngbuddy vmconf** \
@@ -41,7 +41,6 @@ The following commands will configure a system for netgraph in a way that is sui
 	ngbuddy_enable="YES"
 	ngbuddy_public_if="em0"
 	ngbuddy_private_if="nghost0"
-	ngbuddy_set_mac="NO"
 ```
 
 **service ngbuddy start**
@@ -55,63 +54,66 @@ If you'd like to use host-only or NAT interface, you must configure the newly cr
 Once post-configuration is to your liking, create jails or bhyve instances attached to your _public_ or _private_ bridges as you prefer. See the **jail_skel.conf** for assistance configuring jails.
 
 # SUBCOMMANDS
-Subcommands are called using **service ngbuddy _SUBCOMMAND_**. Note that all commands rely on **ngctl(8)** and require root permissions.
+
+Subcommands are called using **service ngbuddy _SUBCOMMAND_**. Note that all commands rely on ngctl(8) and require root permissions.
 
 **enable**
 :    Create a basic default **ngbuddy** configuration and enable the service.
 
 **start**
-:    Load the **ng_bridge(4)** and **ng_eiface(4)** options present in **rc.conf**.
+:    Load the ng_bridge(4) and ng_eiface(4) options configured in **rc.conf**. See _RC.CONF VARIABLES_ below.
 
 **stop**
-:    Destroy all **ng_bridge(4)** and **ng_eiface(4)** devices, regardless of whether they were created with **ngbuddy** or not.
+:    Destroy all ng_bridge(4) and ng_eiface(4) devices, regardless of whether they were created with **ngbuddy** or not.
 
 **restart**
 :    Stop, then start.
 
 **status**
-:    Print a list of **ng_bridge(4)**, **ng_eiface(4)**, and **ng_socket(4)** devices and basic usage statistics.
+:    Print a list of ng_bridge(4), ng_eiface(4), and ng_socket(4) devices and basic usage statistics.
 
-**service ngbuddy bridge** _bridge_ _interface_
-:    Create a bridge and an associated **rc.conf** entry. If the _interface_ exists, _bridge_ will be associated with it. Otherwise, _interface_ will be created as a new **ng_eiface(4)** device.
+**bridge** _bridge_ _interface_
+:    Create a bridge and an associated **rc.conf** entry. If the _interface_ exists, _bridge_ will be associated with it. Otherwise, _interface_ will be created as a new ng_eiface(4) device.
 
-**service ngbuddy unbridge** _bridge_
+**unbridge** _bridge_
 :    Remove the indicated bridge from netgraph and **rc.conf**. This operation will fail if devices appear to be attached to it.
 
-**service ngbuddy jail** _interface_ [_bridge_] 
-:    Create a new **ng_eiface(4)** associated with the indicated _bridge_.
+**jail** _interface_ [_bridge_] 
+:    Create a new ng_eiface(4) associated with the indicated _bridge_. If only one ng_bridge(4) is present, _bridge_ may be omitted.
 
-**service ngbuddy unjail** _interface_ [_jail_]
-:    Remove an **ng_eiface(4)** associated with the indicated _jail_.
+**unjail** _interface_ [_jail_]
+:    Remove an ng_eiface(4) associated with the indicated _jail_. If the _interface_ matches the jail name, _jail_ may be omitted.
 
-**service ngbuddy create** _interface_ [_bridge_]
-:    Create a new **ng_eiface(4)** associated with the indicated _bridge_ and add it to **rc.conf** so it will be created on startup.
+**create** _interface_ [_bridge_]
+:    Create a new ng_eiface(4) associated with the indicated _bridge_ and add it to **rc.conf** so it will be created on startup. If only one ng_bridge(4) is present, _bridge_ may be omitted.
 
-**service ngbuddy destroy** _interface_
-:    Remove an **ng_eiface(4)** associated with the indicated _jail_ and remove it from **rc.conf**.
+**destroy** _interface_
+:    Remove the indicated ng_eiface(4) and remove it from **rc.conf**.
 
-**service ngbuddy vmconf**
-:    Add the bridges in **rc.conf** to the **vm(8)** configuration.
+**vmconf**
+:    Add the bridges configured in **rc.conf** to the vm(8) configuration, e.g., **/vm/.config/system.conf**.
 
-**service ngbuddy vmname**
-:    Name **ng_socket(4)** devices associated with bhyve instances running via **vm(8)**.
+**vmname**
+:    Name ng_socket(4) devices associated with bhyve instances running via vm(8).
 
 # RC.CONF VARIABLES
 
-The above subcommands will use sysrc(8) to configure rc.conf with the following variables for persistent configuration on service restart or system reboot, which can also be edited manually.
+The following variables can be manually configured Some of the above subcommands will use sysrc(8) to configure rc.conf with the following variables for persistent configuration on service restart or system reboot, which can also be edited manually.
 
-**ngbuddy_enable=**"_YES_"
-:    Enable the service.
+_ngbuddy_enable_
+:    Set to _YES_ to enable the service. 
 
-**ngbuddy_BRIDGE_if=**"_IF_"
-:    Link a new _BRIDGE_ to interface _IF_. If _IF_ does not exist, create an ng_eiface device.
+_ngbuddy_(_BRIDGE_)_if_
+:    Link a new ng_bridge(4) device named _BRIDGE_ to the indicated interface, e.g., _eth0_. If the interface already exists, link it to the new bridge and disable LRO/TSO. If the interface does not exist, create it as an ng_eiface(4) device.
 
-**ngbuddy_BRIDGE_list=**"_IF1 IF2 ..._"
-:    Create additional ng_eiface devices attached to _BRIDGE_ at startup.
+_ngbuddy_(_BRIDGE_)_list_
+:    A space delimited list of additional ng_eiface(4) devices that will be attached to _BRIDGE_ at startup.
 
-**ngbuddy_set_mac=**"_YES_|_SEED_"
-:    If set to _YES_, created ng_eiface hardware addresses will be determined from the interface name; this ensures the MAC stays consistent for the named interface regardless of the host it's generated on. Instead of _YES_, you may add a seed value, such as ${hostname} or a common seed to share among jail migration partners. If _NO_, the default auto-assignment will be used, which is more prone to MAC collisions.
+_ngbuddy_set_mac_
+:    If set to _YES_, created ng_eiface hardware addresses will be determined only from a hash of the interface name; this ensures each interface's MAC address stays consistent between hosts. If set to another string, such as a host or domain name, add that seed to the MAC address generator. The default behavior will used FreeBSD's default MAC address generator, which is prone to MAC address collisions in large networks.
 
+_ngbuddy_set_mac_prefix_
+:    Override the default MAC address prefix of **58:9C:FC** (the OUI of the FreeBSD Foundation). For example, you can set _ngbuddy_set_mac_prefix="02"_ to minimize the risk of collisions.
 
 # FILES
 **/usr/local/etc/rc.d/ngbuddy**
@@ -146,4 +148,4 @@ jail(8), netgraph(4), ng_bridge(4), ngctl(8), ng_eiface(4), ng_socket(4), vm(8)
 
 # HISTORY
 
-Netgraph Buddy was originally developed as an internal tool for Bell Tower Integration in August 2022.
+Netgraph Buddy was originally developed as an internal tool for Bell Tower Integration's private cloud in August 2022.

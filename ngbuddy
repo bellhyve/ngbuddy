@@ -58,7 +58,6 @@ ngbuddy_enable() {
 	: ${ngbuddy_private_if:="nghost0"}
 	sysrc ngbuddy_public_if="$ngbuddy_public_if"
 	sysrc ngbuddy_private_if="$ngbuddy_private_if"
-	sysrc ngbuddy_set_mac="NO"
 }
 
 # Configure vm-bhyve with ngbuddy bridges (version 1.5+ required)
