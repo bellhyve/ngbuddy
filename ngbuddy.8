@@ -178,7 +178,7 @@ This variable will be set with the \f[B]create\f[R] and
 \f[I]ngbuddy_set_mac\f[R]
 If set to \f[I]YES\f[R], created ng_eiface hardware addresses will be
 determined only from a hash of the interface name; this ensures each
-interface\[cq]s MAC address stays consistent between hosts.
+interface\[cq]s MAC address is stable between hosts.
 If set to another string, such as a host or domain name, add that seed
 to the MAC address generator.
 The default behavior will used FreeBSD\[cq]s default MAC address
@@ -247,7 +247,7 @@ setup\f[R]
 .IP
 .EX
 ngbuddy_enable=\[dq]YES\[dq]
-ngbuddy_wan=\[dq]ix0\[dq]
+ngbuddy_wan_if=\[dq]ix0\[dq]
 ngbuddy_tenantwan_if=\[dq]ix1\[dq]
 ngbuddy_lan_if=\[dq]igb0\[dq]
 ngbuddy_tenantlan_if=\[dq]igb1\[dq]
@@ -260,6 +260,31 @@ ngbuddy_set_mac_prefix=\[dq]02\[dq]
 .EE
 .PP
 \f[B]Example 3: Initial status of the above configuration\f[R]
+.IP
+.EX
+private1
+  j2p1: RX 0B, TX 0B
+  j1p1: RX 0B, TX 0B
+  ng1: RX 0B, TX 0B
+tenantlan
+  igb1 \f[B](\f[R]upper\f[B])\f[R]: RX 0B, TX 0B
+  igb1 \f[B](\f[R]lower\f[B])\f[R]: RX 0B, TX 0B
+tenantwan
+  ix1 \f[B](\f[R]upper\f[B])\f[R]: RX 0B, TX 0B
+  ix1 \f[B](\f[R]lower\f[B])\f[R]: RX 0B, TX 0B
+wan
+  ix0 \f[B](\f[R]upper\f[B])\f[R]: RX 90.43 KB, TX 127.50 KB
+  ix0 \f[B](\f[R]lower\f[B])\f[R]: RX 127.50 KB, TX 88.70 KB
+lan
+  hmm1: RX 127.50 KB, TX 88.70 KB
+  hmm0: RX 127.50 KB, TX 88.70 KB
+  igb0 \f[B](\f[R]upper\f[B])\f[R]: RX 127.50 KB, TX 88.70 KB
+  igb0 \f[B](\f[R]lower\f[B])\f[R]: RX 127.50 KB, TX 88.70 KB
+private0
+  j2p0: RX 127.50 KB, TX 88.70 KB
+  j1p0: RX 127.50 KB, TX 88.70 KB
+  ng0: RX 127.50 KB, TX 88.70 KB
+.EE
 .SH SEE ALSO
 jail(8), netgraph(4), ng_bridge(4), ngctl(8), ng_eiface(4),
 ng_socket(4), vm(8)

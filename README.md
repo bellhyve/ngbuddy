@@ -110,7 +110,7 @@ _ngbuddy\_(_BRIDGE_)\_list_
 :    A space delimited list of additional ng_eiface(4) devices that will be attached to _BRIDGE_ at startup. This variable will be set with the **create** and **destroy** subcommands.
 
 _ngbuddy_set_mac_
-:    If set to _YES_, created ng_eiface hardware addresses will be determined only from a hash of the interface name; this ensures each interface's MAC address stays consistent between hosts. If set to another string, such as a host or domain name, add that seed to the MAC address generator. The default behavior will used FreeBSD's default MAC address generator, which is prone to MAC address collisions in large networks.
+:    If set to _YES_, created ng_eiface hardware addresses will be determined only from a hash of the interface name; this ensures each interface's MAC address is stable between hosts. If set to another string, such as a host or domain name, add that seed to the MAC address generator. The default behavior will used FreeBSD's default MAC address generator, which is prone to MAC address collisions in large networks.
 
 _ngbuddy_set_mac_prefix_
 :    Override the default MAC address prefix of **58:9C:FC** (the OUI of the FreeBSD Foundation). For example, you can set _ngbuddy_set_mac_prefix="02"_ to minimize the risk of collisions.
