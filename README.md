@@ -181,8 +181,6 @@ wan
   ix0 (upper): RX 90.43 KB, TX 127.50 KB
   ix0 (lower): RX 127.50 KB, TX 88.70 KB
 lan
-  hmm1: RX 127.50 KB, TX 88.70 KB
-  hmm0: RX 127.50 KB, TX 88.70 KB
   igb0 (upper): RX 127.50 KB, TX 88.70 KB
   igb0 (lower): RX 127.50 KB, TX 88.70 KB
 private0
