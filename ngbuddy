@@ -182,11 +182,17 @@ ngbuddy_create_eiface_temporary() {
 # service ngbuddy destroy: remove an eiface
 ngbuddy_shutdown_eiface() {
 	if_name="$1"
+	[ -z "$if_name" ] && return
 	bridge=$(ngctl list -l | awk -v myif="$if_name" \
 		'($3 == "bridge"){bridge[$5] = $2} \
 		($3 == "eiface"){eiface[$2] = $1} \
 		END{print bridge[eiface[myif]]}')
-	if [ -n "$bridge" ]
+	local bridge_if=$(eval echo \$ngbuddy_${bridge}_if)
+	if [ "$bridge_if" = "$if_name" ]
+	then
+		echo Interface  $if_name is associated with bridge $bridge.
+		echo Use the subcommand \"unbridge $bridge\" to remove it.
+	elif [ -n "$bridge" ]
 	then
 		echo Removing $if_name from $bridge
 	else
