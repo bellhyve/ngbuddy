@@ -141,7 +141,7 @@ ngbuddy_ifconfig_ether() {
 	: ${ngbuddy_set_mac_hash:="sha1"}
 	local mac_len=$((12-${#ngbuddy_set_mac_prefix}))
 	local mac="$(echo -n "$seed" | $ngbuddy_set_mac_hash | cut -c1-$mac_len)"
-	mac="${$ngbuddy_set_mac_prefix}${mac}"
+	mac="${ngbuddy_set_mac_prefix}${mac}"
 	ifconfig $if_name ether "$mac"
 }
 
