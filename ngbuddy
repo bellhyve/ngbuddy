@@ -149,7 +149,7 @@ ngbuddy_ifconfig_ether() {
 ngbuddy_create_eiface() {
 	if_name=$1
 	bridge=$2
-	if [ "$LNUM" = 0 ]
+	if [ -z "$LNUM" ]
 	then
 		ngbuddy_init
 		linkpp
