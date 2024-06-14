@@ -25,17 +25,16 @@ start_cmd="${name}_start"
 stop_cmd="${name}_stop"
 status_cmd="${name}_status"
 bridge_cmd="${name}_bridge"
+unbridge_cmd="${name}_shutdown_bridge"
 create_cmd="${name}_create_eiface_permanent"
 destroy_cmd="${name}_shutdown_eiface_permanent"
+jail_cmd="${name}_create_eiface_temporary"
+unjail_cmd="${name}_unjail"
 vmconf_cmd="${name}_vmconf"
 vmname_cmd="${name}_vmname"
-jail_cmd="${name}_create_eiface_temporary"
-unbridge_cmd="${name}_shutdown_bridge"
-unjail_cmd="${name}_unjail"
 extra_commands="bridge create destroy jail unbridge unjail vmconf vmname"
 
 load_rc_config "$ngbuddy"
-# TO-DO: Find a more elegant way to get the dynamic "bridge_name" list.
 : ${ngbuddy_bridges:="`list_vars 'ngbuddy_*_if'|sed -E 's/^ngbuddy_|_if$//g'|xargs`"}
 : ${ngbuddy_share_dir:="/usr/local/share/ngbuddy"}
 
