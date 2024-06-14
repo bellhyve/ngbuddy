@@ -147,7 +147,6 @@ ngbuddy_ifconfig_ether() {
 
 # Attach a new eiface to the specified bridge
 ngbuddy_create_eiface() {
-	# These need to be returned for sysrc
 	if_name=$1
 	bridge=$2
 	if [ $LNUM = 0 ]
@@ -187,7 +186,7 @@ ngbuddy_shutdown_eiface() {
 		'($3 == "bridge"){bridge[$5] = $2} \
 		($3 == "eiface"){eiface[$2] = $1} \
 		END{print bridge[eiface[myif]]}')
-	if [ -z "$bridge" ]
+	if [ -n "$bridge" ]
 	then
 		echo Removing $if_name from $bridge
 	else
