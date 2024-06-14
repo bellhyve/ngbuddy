@@ -115,6 +115,9 @@ _ngbuddy_set_mac_
 _ngbuddy_set_mac_prefix_
 :    Override the default MAC address prefix of **58:9C:FC** (the OUI of the FreeBSD Foundation). For example, you can set _ngbuddy_set_mac_prefix="02"_ to minimize the risk of collisions.
 
+_ngbuddy_set_mac_hash_
+:    Override the default hash command of **sha1** with the command indicated. The command's output will receive the seed (see _ngbuddy_set_mac_) and must return enough hexadecimal characters to complete the MAC address after its prefix. Note that using more complex SHA algorithms does not decrease the risk of collisions.
+
 # FILES
 **/usr/local/etc/rc.d/ngbuddy**
 :    The Netgraph Buddy run control script.
@@ -158,6 +161,7 @@ ngbuddy_private1_if="ng1"
 ngbuddy_private1_list="j1p1 j2p1"
 ngbuddy_set_mac="belltower"
 ngbuddy_set_mac_prefix="02"
+ngbuddy_set_mac_hash="sha256"
 ```
 
 **Example 3: Initial status of the above configuration**

@@ -189,6 +189,15 @@ Override the default MAC address prefix of \f[B]58:9C:FC\f[R] (the OUI
 of the FreeBSD Foundation).
 For example, you can set \f[I]ngbuddy_set_mac_prefix=\[lq]02\[rq]\f[R]
 to minimize the risk of collisions.
+.TP
+\f[I]ngbuddy_set_mac_hash\f[R]
+Override the default hash command of \f[B]sha1\f[R] with the command
+indicated.
+The command\[cq]s output will receive the seed (see
+\f[I]ngbuddy_set_mac\f[R]) and must return enough hexadecimal characters
+to complete the MAC address after its prefix.
+Note that using more complex SHA algorithms does not decrease the risk
+of collisions.
 .SH FILES
 .TP
 \f[B]/usr/local/etc/rc.d/ngbuddy\f[R]
@@ -257,6 +266,7 @@ ngbuddy_private1_if=\[dq]ng1\[dq]
 ngbuddy_private1_list=\[dq]j1p1 j2p1\[dq]
 ngbuddy_set_mac=\[dq]belltower\[dq]
 ngbuddy_set_mac_prefix=\[dq]02\[dq]
+ngbuddy_set_mac_hash=\[dq]sha256\[dq]
 .EE
 .PP
 \f[B]Example 3: Initial status of the above configuration\f[R]

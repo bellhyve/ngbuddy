@@ -25,11 +25,11 @@ start_cmd="${name}_start"
 stop_cmd="${name}_stop"
 status_cmd="${name}_status"
 bridge_cmd="${name}_bridge"
-create_cmd="${name}_create"
-destroy_cmd="${name}_destroy"
+create_cmd="${name}_create_eiface_permanent"
+destroy_cmd="${name}_shutdown_eiface_permanent"
 vmconf_cmd="${name}_vmconf"
 vmname_cmd="${name}_vmname"
-jail_cmd="${name}_jail"
+jail_cmd="${name}_create_eiface_temporary"
 unbridge_cmd="${name}_shutdown_bridge"
 unjail_cmd="${name}_unjail"
 extra_commands="bridge create destroy jail unbridge unjail vmconf vmname"
@@ -136,77 +136,80 @@ ngbuddy_public() {
 
 # Set a MAC address
 ngbuddy_ifconfig_ether() {
-	ifname="$1"
-	seed="$1$2"
+	local if_name="$1"
+	local seed="$1$2"
 	: ${ngbuddy_set_mac_prefix:="589cfc"}
-	mac_len=$((12-${#ngbuddy_set_mac_prefix}))
-	mac="$ngbuddy_set_mac_prefix$(echo -n "$seed" | sha1 | cut -c1-$mac_len)"
-	ifconfig $ifname ether "$mac"
+	: ${ngbuddy_set_mac_hash:="sha1"}
+	local mac_len=$((12-${#ngbuddy_set_mac_prefix}))
+	local mac="$(echo -n "$seed" | $ngbuddy_set_mac_hash | cut -c1-$mac_len)"
+	mac = "${$ngbuddy_set_mac_prefix}${mac}"
+	ifconfig $if_name ether "$mac"
 }
 
 # Attach a new eiface to the specified bridge
-ngbuddy_addif() {
-	bridge=$1
-	ifname=$2
-	ifconfig $ifname > /dev/null 2>&1 && return
-	ngctl mkpeer $bridge: eiface link${LNUM} ether
-	ngif=`ngctl show -n $bridge:link${LNUM} |awk '{print $2}'`; linkpp
-	ngctl name $ngif: $ifname
-	ifconfig $ngif name $ifname >/dev/null
-	case "${ngbuddy_set_mac}" in
-		[Nn][Oo] | '')	;;
-		[Yy][Ee][Ss])	ngbuddy_ifconfig_ether "$ifname" ;;
-		*)		ngbuddy_ifconfig_ether "$ifname" "$ngbuddy_set_mac" ;;
-	esac
-}
-
-# Initialize and determine bridge, then add a new eiface to it
 ngbuddy_create_eiface() {
-	ngbuddy_init
-	ifname="$1"
-	bridge="$2"
-	if [ -z "$2" ] ; then
+	# These need to be returned for sysrc
+	if_name=$1
+	bridge=$2
+	if [ $LNUM = 0 ]
+	then
+		ngbuddy_init
+		linkpp
+	fi
+	if [ -z "$bridge" ] ; then
 		# TO-DO: Prefer bridge associated with the default route.
 		bridge="`echo $ngbuddy_bridges | awk '{print $1}'`"
 	fi
-	[ $LNUM = 0 ] && linkpp
-	ngbuddy_addif "$bridge" "$ifname"
+	ifconfig $if_name > /dev/null 2>&1 && return
+	ngctl mkpeer $bridge: eiface link${LNUM} ether
+	local ngif=$(ngctl show -n $bridge:link${LNUM} |awk '{print $2}'); linkpp
+	ngctl name $ngif: $if_name
+	ifconfig $ngif name $if_name >/dev/null
+	case "${ngbuddy_set_mac}" in
+		[Nn][Oo] | '')	;;
+		[Yy][Ee][Ss])	ngbuddy_ifconfig_ether "$if_name" ;;
+		*)		ngbuddy_ifconfig_ether "$if_name" "$ngbuddy_set_mac" ;;
+	esac
 }
 
-ngbuddy_create() {
+ngbuddy_create_eiface_permanent() {
 	ngbuddy_create_eiface "$@"
-	sysrc ngbuddy_${bridge}_list+="$ifname"
+	sysrc ngbuddy_${bridge}_list+="$if_name"
 }
 
-ngbuddy_jail() {
+ngbuddy_create_eiface_temporary() {
 	ngbuddy_create_eiface "$@"
 }
 
 # service ngbuddy destroy: remove an eiface
 ngbuddy_shutdown_eiface() {
-	nodename="$1"
-	for bridge in $ngbuddy_bridges
-	do
-		eval list=\$ngbuddy_${bridge}_list
-		if echo $list|grep -qw $nodename
-		then
-			echo Removing $nodename from $bridge
-			ngctl shutdown "$nodename":
-		fi
-	done
-}
-
-ngbuddy_destroy() {
-	ngbuddy_shutdown_eiface "$@"
-	sysrc ngbuddy_${bridge}_list-="$nodename"
-}
-
-ngbuddy_unjail() {
 	if_name="$1"
-	jail_name="${2:-$1}"
+	bridge=$(ngctl list -l | awk -v myif="$if_name" \
+		'($3 == "bridge"){bridge[$5] = $2} \
+		($3 == "eiface"){eiface[$2] = $1} \
+		END{print bridge[eiface[myif]]}')
+	if [ -z "$bridge" ]
+	then
+		echo Removing $if_name from $bridge
+	else
+		echo Removing orphaned interface $if_name
+	fi
+	ngctl shutdown "$if_name":
+}
+
+# Subcommand: destroy
+ngbuddy_shutdown_eiface_permanent() {
+	ngbuddy_shutdown_eiface "$@"
+	sysrc ngbuddy_${bridge}_list-="$if_name"
+}
+
+# Remove a temporary interface from a jail and shut it down
+# Subcommand: unjail
+ngbuddy_unjail() {
+	local if_name="$1"
+	local jail_name="${2:-$1}"
 	ifconfig "$if_name" -vnet "$jail_name"
-	ngctl shutdown "${if_name}:"
-	#ngbuddy_shutdown_eiface "$if_name"
+	ngbuddy_shutdown_eiface "$if_name"
 }
 
 ngbuddy_bridge() {
@@ -250,7 +253,7 @@ ngbuddy_bridge() {
 	for newif in $linklist
 	do
 		echo -n " $newif"
-		ngbuddy_addif $bridge $newif
+		ngbuddy_create_eiface $newif $bridge
 	done
 	echo
 }
