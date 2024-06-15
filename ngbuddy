@@ -4,7 +4,7 @@
 # REQUIRE:	FILESYSTEMS
 # BEFORE:	NETWORKING
 
-# See ngbuddy(8) for confiugration details. For manual configuration,
+# See ngbuddy(8) for configuration details. For manual configuration,
 # add the following to /etc/rc.conf[.local]:
 #
 # ngbuddy_enable="YES"
@@ -38,99 +38,34 @@ load_rc_config "$ngbuddy"
 : ${ngbuddy_bridges:="`list_vars 'ngbuddy_*_if'|sed -E 's/^ngbuddy_|_if$//g'|xargs`"}
 : ${ngbuddy_share_dir:="/usr/local/share/ngbuddy"}
 
-# Count netgraph links
-linkpp() {
-	LNUM=$((LNUM+1))
-}
-
-# Make a "public" bridge to the NIC containing the default gateway, and create a
-# "private" bridge linked to eiface nghost0.
+# Enable Netgraph Buddy and add default bridges if none are defined
+# "public" is associated with the default route, and "private" is given an eiface
 ngbuddy_enable() {
 	sysrc ngbuddy_enable=YES
-	if [ -n "$ngbuddy_bridges" ]
+	if [ -z "$ngbuddy_bridges" ]
 	then
-		exit 0
-	else
-		echo Adding default bridges.
+		echo Adding default public and private bridges.
+		local public_if="$(netstat -rn | awk '/default/{gsub("\\.","_",$4);print $4}')"
+		[ -n "$public_if" ] && sysrc ngbuddy_public_if="$public_if"
+		sysrc ngbuddy_private_if="nghost0"
 	fi
-	: ${ngbuddy_public_if:="`netstat -rn|grep default|cut -wf4|tr . _`"}
-	: ${ngbuddy_private_if:="nghost0"}
-	sysrc ngbuddy_public_if="$ngbuddy_public_if"
-	sysrc ngbuddy_private_if="$ngbuddy_private_if"
-}
-
-# Configure vm-bhyve with ngbuddy bridges (version 1.5+ required)
-ngbuddy_vmname() {
-	case "$vm_dir" in
-		zfs:*)	vm_dir="`echo "$vm_dir"|cut -d: -f2`"
-			vm_conf="`zfs get -H mountpoint "$vm_dir"|cut -wf3`" ;;
-		?*)	vm_conf="$vm_dir" ;;
-		*)	return ;;
-	esac
-	running_vms=`ps axww|awk '/bhyve[:] /{print $6}'`
-	for this_vm in $running_vms; do
-		vm_socket_name=`echo $this_vm|tr ". " _`
-		vm_if_conf=`tail -r "$vm_conf/$this_vm/vm-bhyve.log" |\
-			grep -Eom1 'netgraph,path=.*,peerhook=[^,]+'`
-		path=`echo $vm_if_conf|cut -d, -f2|cut -d= -f2`
-		peerhook=`echo $vm_if_conf|cut -d, -f3|cut -d= -f2`
-		ngctl name $path$peerhook $vm_socket_name
-	done
-}
-
-ngbuddy_vmconf() {
-	case "$vm_dir" in
-		zfs:*)	vm_dir="`echo "$vm_dir"|cut -d: -f2`"
-			vm_conf="`zfs get -H mountpoint "$vm_dir"|cut -wf3`" ;;
-		?*)	vm_conf="$vm_dir" ;;
-		*)	return ;;
-	esac
-	vm_bak="$vm_conf/.config/.system.conf.bak"
-	vm_conf="$vm_conf/.config/system.conf"
-	cp -p "$vm_conf" "$vm_bak"
-	echo Configuring $vm_conf:
-	sysrc -f "$vm_conf" switch_list+="$ngbuddy_bridges"
-	for ngbuddy_bridge in $ngbuddy_bridges
-	do
-		sysrc -f "$vm_conf" type_$ngbuddy_bridge=netgraph
-	done
 }
 
 # Make sure netgraph is loaded and count its links.
 ngbuddy_init() {
-	[ -n "$LNUM" ] && linkpp
 	kldload -nq ng_ether ng_bridge
-	LNUM=`ngctl list -l|awk -F'.*link| ' '/link/{if($2>x||x=="")x=$2}END{print x}'`
+}
+
+# Set LNUM to next available link
+linkpp() {
 	if [ -n "$LNUM" ]
 	then
-		linkpp
+		LNUM=$((LNUM + 1))
 	else
-		LNUM=0
+		LNUM=$(ngctl list -l | awk '
+			$1 ~ /link[0-9]+/ { x = int(substr($1, 5)); if(x > y) y = x}
+			END { print y ? (++y) : 0 }')
 	fi
-}
-
-# Enable a private bridge and attach a new eiface.
-ngbuddy_private() {
-	bridge=$1
-	eval linkif=\$ngbuddy_${bridge}_if
-	ngctl mkpeer eiface ether ether
-	ngeth=`ngctl list|cut -wf3|grep '^ngeth'|sort -n|tail -1`
-	ngctl name $ngeth: $linkif
-	ifconfig $ngeth name $linkif up > /dev/null
-	ngctl mkpeer $linkif: bridge ether link${LNUM}; linkpp
-	ngctl name $linkif:ether $bridge
-}
-
-# Enable a public bridge and attach an existing NIC
-ngbuddy_public() {
-	bridge=$1
-	eval linkif=\$ngbuddy_${bridge}_if
-	ngctl msg $linkif: setpromisc 1
-	ngctl msg $linkif: setautosrc 0
-	ngctl mkpeer $linkif: bridge lower link${LNUM}; linkpp
-	ngctl name  $linkif:lower $bridge
-	ngctl connect $linkif: $bridge: upper link${LNUM}; linkpp
-	ifconfig $linkif lro -tso4 -tso6 -vlanhwfilter -vlanhwtso
 }
 
 # Set a MAC address
@@ -149,16 +84,12 @@ ngbuddy_ifconfig_ether() {
 ngbuddy_create_eiface() {
 	if_name=$1
 	bridge=$2
-	if [ -z "$LNUM" ]
-	then
-		ngbuddy_init
-		linkpp
-	fi
 	if [ -z "$bridge" ] ; then
 		# TO-DO: Prefer bridge associated with the default route.
 		bridge="`echo $ngbuddy_bridges | awk '{print $1}'`"
 	fi
 	ifconfig $if_name > /dev/null 2>&1 && return
+	linkpp
 	ngctl mkpeer $bridge: eiface link${LNUM} ether
 	local ngif=$(ngctl show -n $bridge:link${LNUM} |awk '{print $2}'); linkpp
 	ngctl name $ngif: $if_name
@@ -216,10 +147,36 @@ ngbuddy_unjail() {
 	ngbuddy_shutdown_eiface "$if_name"
 }
 
+# Enable a private bridge and attach a new eiface.
+ngbuddy_private() {
+	bridge=$1
+	eval linkif=\$ngbuddy_${bridge}_if
+	ngctl mkpeer eiface ether ether
+	ngeth=`ngctl list|cut -wf3|grep '^ngeth'|sort -n|tail -1`
+	ngctl name $ngeth: $linkif
+	ifconfig $ngeth name $linkif up > /dev/null
+	linkpp
+	ngctl mkpeer $linkif: bridge ether link${LNUM}; linkpp
+	ngctl name $linkif:ether $bridge
+}
+
+# Enable a public bridge and attach an existing NIC
+ngbuddy_public() {
+	bridge=$1
+	eval linkif=\$ngbuddy_${bridge}_if
+	ngctl msg $linkif: setpromisc 1
+	ngctl msg $linkif: setautosrc 0
+	linkpp
+	ngctl mkpeer $linkif: bridge lower link${LNUM}; linkpp
+	ngctl name  $linkif:lower $bridge
+	ngctl connect $linkif: $bridge: upper link${LNUM}; linkpp
+	ifconfig $linkif lro -tso4 -tso6 -vlanhwfilter -vlanhwtso
+}
+
 ngbuddy_bridge() {
 	bridge=$1
 	bridgeif=$2
-	[ -z "$LNUM" ] && ngbuddy_init
+	ngbuddy_init
 
 	# Check for bridge name conflicts
 	brmatch=`echo $bridge|tr _ .`
@@ -327,6 +284,43 @@ ngbuddy_stop() {
 	xargs -tn1 -I% ngctl shutdown %: 2>/dev/null
 	echo Removed $LNUM links.
 	LNUM="" # In case this is a restart.
+}
+
+# Configure vm-bhyve with ngbuddy bridges (version 1.5+ required)
+ngbuddy_vmname() {
+	case "$vm_dir" in
+		zfs:*)	vm_dir="`echo "$vm_dir"|cut -d: -f2`"
+			vm_conf="`zfs get -H mountpoint "$vm_dir"|cut -wf3`" ;;
+		?*)	vm_conf="$vm_dir" ;;
+		*)	return ;;
+	esac
+	running_vms=`ps axww|awk '/bhyve[:] /{print $6}'`
+	for this_vm in $running_vms; do
+		vm_socket_name=`echo $this_vm|tr ". " _`
+		vm_if_conf=`tail -r "$vm_conf/$this_vm/vm-bhyve.log" |\
+			grep -Eom1 'netgraph,path=.*,peerhook=[^,]+'`
+		path=`echo $vm_if_conf|cut -d, -f2|cut -d= -f2`
+		peerhook=`echo $vm_if_conf|cut -d, -f3|cut -d= -f2`
+		ngctl name $path$peerhook $vm_socket_name
+	done
+}
+
+ngbuddy_vmconf() {
+	case "$vm_dir" in
+		zfs:*)	vm_dir="`echo "$vm_dir"|cut -d: -f2`"
+			vm_conf="`zfs get -H mountpoint "$vm_dir"|cut -wf3`" ;;
+		?*)	vm_conf="$vm_dir" ;;
+		*)	return ;;
+	esac
+	vm_bak="$vm_conf/.config/.system.conf.bak"
+	vm_conf="$vm_conf/.config/system.conf"
+	cp -p "$vm_conf" "$vm_bak"
+	echo Configuring $vm_conf:
+	sysrc -f "$vm_conf" switch_list+="$ngbuddy_bridges"
+	for ngbuddy_bridge in $ngbuddy_bridges
+	do
+		sysrc -f "$vm_conf" type_$ngbuddy_bridge=netgraph
+	done
 }
 
 run_rc_command "$1" "$2" "$3"
