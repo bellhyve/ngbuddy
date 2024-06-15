@@ -51,59 +51,63 @@ ngbuddy_enable() {
 	fi
 }
 
-# Make sure netgraph is loaded and count its links.
-ngbuddy_init() {
-	kldload -nq ng_ether ng_bridge
-}
-
 # Set LNUM to next available link
-linkpp() {
+ngbuddy_linkpp() {
 	if [ -n "$LNUM" ]
 	then
 		LNUM=$((LNUM + 1))
 	else
 		LNUM=$(ngctl list -l | awk '
-			$1 ~ /link[0-9]+/ { x = int(substr($1, 5)); if(x > y) y = x}
+			$1 ~ /^link/ {x = int(substr($1, 5)); if(x > y) y = x}
 			END { print y ? (++y) : 0 }')
 	fi
 }
 
-# Set a MAC address
-ngbuddy_ifconfig_ether() {
-	local if_name="$1"
-	local seed="$1$2"
-	: ${ngbuddy_set_mac_prefix:="589cfc"}
-	: ${ngbuddy_set_mac_hash:="sha1"}
-	local mac_len=$((12-${#ngbuddy_set_mac_prefix}))
-	local mac="$(echo -n "$seed" | $ngbuddy_set_mac_hash | cut -c1-$mac_len)"
-	mac="${ngbuddy_set_mac_prefix}${mac}"
-	ifconfig $if_name ether "$mac"
+# Make sure netgraph is loaded and count its links.
+ngbuddy_init() {
+	kldload -nq ng_ether ng_bridge
+	[ -z "$LNUM" ] && ngbuddy_linkpp
 }
 
-# Attach a new eiface to the specified bridge
-ngbuddy_create_eiface() {
-	if_name=$1
-	bridge=$2
-	if [ -z "$bridge" ] ; then
-		# TO-DO: Prefer bridge associated with the default route.
-		bridge="`echo $ngbuddy_bridges | awk '{print $1}'`"
-	fi
-	ifconfig $if_name > /dev/null 2>&1 && return
-	linkpp
-	ngctl mkpeer $bridge: eiface link${LNUM} ether
-	local ngif=$(ngctl show -n $bridge:link${LNUM} |awk '{print $2}'); linkpp
-	ngctl name $ngif: $if_name
-	ifconfig $ngif name $if_name >/dev/null
+# Set a MAC address
+ngbuddy_ifconfig_ether() {
+	local seed mac_len mac
 	case "${ngbuddy_set_mac}" in
-		[Nn][Oo] | '')	;;
-		[Yy][Ee][Ss])	ngbuddy_ifconfig_ether "$if_name" ;;
-		*)		ngbuddy_ifconfig_ether "$if_name" "$ngbuddy_set_mac" ;;
+		[Nn][Oo] | '')	return ;;
+		[Yy][Ee][Ss])	seed="$if_name" ;;
+		*)		seed="$if_name$ngbuddy_set_mac" ;;
 	esac
+	: ${ngbuddy_set_mac_prefix:="589cfc"}
+	: ${ngbuddy_set_mac_hash:="sha1"}
+	local mac_len="$((12-${#ngbuddy_set_mac_prefix}))"
+	local mac="$(echo -n "$seed" | $ngbuddy_set_mac_hash | cut -c1-$mac_len)"
+	mac="${ngbuddy_set_mac_prefix}${mac}"
+	ifconfig "$if_name" ether "$mac"
+}
+
+# Attach a new eiface to a bridge
+ngbuddy_create_eiface() {
+	ngbuddy_init
+	if_name="$1"
+	bridge="${2:-$(echo $ngbuddy_bridges | awk '{print $1}')}"
+	if ifconfig "$if_name" > /dev/null 2>&1; then
+		echo "$if_name" already exists.
+		return
+	fi
+	ngctl mkpeer "$bridge:" eiface "link${LNUM}" ether
+	local ng_if="$(ngctl show -n "$bridge:link${LNUM}" |awk '{print $2}')"
+	ngbuddy_linkpp
+	ngctl name "$ng_if:" "$if_name"
+	ifconfig "$ng_if" name "$if_name" >/dev/null
+	ngbuddy_ifconfig_ether
 }
 
 ngbuddy_create_eiface_permanent() {
 	ngbuddy_create_eiface "$@"
-	sysrc ngbuddy_${bridge}_list+="$if_name"
+	if [ -n "$if_name" -a -n "$bridge" ]
+	then
+		sysrc ngbuddy_${bridge}_list+="$if_name"
+	fi
 }
 
 ngbuddy_create_eiface_temporary() {
@@ -155,8 +159,7 @@ ngbuddy_private() {
 	ngeth=`ngctl list|cut -wf3|grep '^ngeth'|sort -n|tail -1`
 	ngctl name $ngeth: $linkif
 	ifconfig $ngeth name $linkif up > /dev/null
-	linkpp
-	ngctl mkpeer $linkif: bridge ether link${LNUM}; linkpp
+	ngctl mkpeer $linkif: bridge ether link${LNUM}; ngbuddy_linkpp
 	ngctl name $linkif:ether $bridge
 }
 
@@ -166,10 +169,11 @@ ngbuddy_public() {
 	eval linkif=\$ngbuddy_${bridge}_if
 	ngctl msg $linkif: setpromisc 1
 	ngctl msg $linkif: setautosrc 0
-	linkpp
-	ngctl mkpeer $linkif: bridge lower link${LNUM}; linkpp
+	ngctl mkpeer $linkif: bridge lower link${LNUM}
+	ngbuddy_linkpp
 	ngctl name  $linkif:lower $bridge
-	ngctl connect $linkif: $bridge: upper link${LNUM}; linkpp
+	ngctl connect $linkif: $bridge: upper link${LNUM}
+	ngbuddy_linkpp
 	ifconfig $linkif lro -tso4 -tso6 -vlanhwfilter -vlanhwtso
 }
 
@@ -215,6 +219,7 @@ ngbuddy_bridge() {
 	do
 		echo -n " $newif"
 		ngbuddy_create_eiface $newif $bridge
+		ngbuddy_linkpp
 	done
 	echo
 }
@@ -261,6 +266,7 @@ ngbuddy_start() {
 	for bridge in $ngbuddy_bridges
 	do
 		ngbuddy_bridge $bridge
+		ngbuddy_linkpp
 	done
 	echo Created $LNUM links.
 }
