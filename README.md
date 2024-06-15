@@ -134,18 +134,30 @@ These scripts were developed to assist with new netgraph features in **vm-bhyve 
 
 # EXAMPLES
 
-**Example 1: Quickly deploy VNET jails with netgraph using jail.conf.d**
+**Example 1: Quickly deploy a VNET jail with netgraph using jail.conf.d**
 
-See the files in **examples** at: https://github.com/bellhyve/netgraph-buddy
+The following steps will configure a jail attached to the interface associated with your default route, likely your LAN, using DHCP. See the files in **examples** at: https://github.com/bellhyve/netgraph-buddy
 
-After following the above **QUICK START EXAMPLE**: \
-- Append the **devfs.rules** example to **/etc/devfs.rules** \
-- Extract a FreeBSD **base.txz** in **/jail/my_jail** \
-- Copy the **jail_skel.conf** to **/etc/jail.conf.d/my_jail.conf** \
-- In **my_jail.conf**, change the jail name to **my_jail** \
+First, set up Netgraph Buddy: \
+- **service ngbuddy enable** \
+- **service ngbuddy start** \
+- Append **examples/devfs.rules** to **/etc/devfs.rules** \
+
+Next, create a new jail: \
+- Set up a FreeBSD base: **bsdinstall jail /jail/my_jail** \
+- Enable DHCP in the jail: **sysrc -f /jail/my_jail/etc/rc.conf ifconfig_DEFAULT=SYNCDHCP** \
+
+Configure the jail configuration: \
+- Copy **examples/jail_skel.conf** to **/etc/jail.conf.d/my_jail.conf** \
+- In **my_jail.conf** after the comments, change the word **jail_skel** to your jail's name, **my_jail** \
 - Run: **service jail start my_jail** \
 
-This provides a simple framework for cloning jails and editing a single template line for rapid deployment of many VNET jails.
+To create more jails, you can: \
+- Copy **/jail/my_jail/** to **/jail/new_jail1/** \
+- Copy **/etc/jail.conf.d/my_jail.conf** to **new_jail1.conf** \
+- Edit the new configuration as above, chaning the word **my_jail** to **new_jail1** \
+- Run: **service jail start new_jail1**
+- And repeat as desired.
 
 **Example 2: An rc.conf example for a slightly more complex setup**
 
