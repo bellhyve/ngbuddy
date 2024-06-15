@@ -179,7 +179,6 @@ ngbuddy_bridge() {
 	bridge=$1
 	bridgeif=$2
 	ngbuddy_init
-	local link_count
 
 	# Check for bridge name conflicts
 	brmatch=`echo $bridge|tr _ .`
@@ -217,9 +216,8 @@ ngbuddy_bridge() {
 	for newif in $linklist
 	do
 		echo -n " $newif"
-		[ -n "$link_count" ] && ngbuddy_linkpp
+		ngbuddy_linkpp
 		ngbuddy_create_eiface $newif $bridge
-		link_count=$(($link_count + 1))
 	done
 	echo
 }
