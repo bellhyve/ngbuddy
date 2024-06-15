@@ -96,7 +96,6 @@ ngbuddy_create_eiface() {
 	fi
 	ngctl mkpeer "$bridge:" eiface "link${LNUM}" ether
 	local ng_if="$(ngctl show -n "$bridge:link${LNUM}" |awk '{print $2}')"
-	ngbuddy_linkpp
 	ngctl name "$ng_if:" "$if_name"
 	ifconfig "$ng_if" name "$if_name" >/dev/null
 	ngbuddy_ifconfig_ether
@@ -159,7 +158,7 @@ ngbuddy_private() {
 	ngeth=`ngctl list|cut -wf3|grep '^ngeth'|sort -n|tail -1`
 	ngctl name $ngeth: $linkif
 	ifconfig $ngeth name $linkif up > /dev/null
-	ngctl mkpeer $linkif: bridge ether link${LNUM}; ngbuddy_linkpp
+	ngctl mkpeer $linkif: bridge ether link${LNUM}
 	ngctl name $linkif:ether $bridge
 }
 
@@ -173,7 +172,6 @@ ngbuddy_public() {
 	ngbuddy_linkpp
 	ngctl name  $linkif:lower $bridge
 	ngctl connect $linkif: $bridge: upper link${LNUM}
-	ngbuddy_linkpp
 	ifconfig $linkif lro -tso4 -tso6 -vlanhwfilter -vlanhwtso
 }
 
@@ -181,6 +179,7 @@ ngbuddy_bridge() {
 	bridge=$1
 	bridgeif=$2
 	ngbuddy_init
+	local link_count
 
 	# Check for bridge name conflicts
 	brmatch=`echo $bridge|tr _ .`
@@ -218,8 +217,9 @@ ngbuddy_bridge() {
 	for newif in $linklist
 	do
 		echo -n " $newif"
+		[ -n "$link_count" ] && ngbuddy_linkpp
 		ngbuddy_create_eiface $newif $bridge
-		ngbuddy_linkpp
+		link_count=$(($link_count + 1))
 	done
 	echo
 }
@@ -257,6 +257,7 @@ ngbuddy_shutdown_bridge() {
 # Create nodes and ifaces defined in rc.conf
 ngbuddy_start() {
 	ngbuddy_init
+	local bridge_count
 	echo Starting $name.
 	if [ "$LNUM" -gt 0 ]
 	then
@@ -265,8 +266,10 @@ ngbuddy_start() {
 	fi
 	for bridge in $ngbuddy_bridges
 	do
+		[ -n "$bridge_count" ] && ngbuddy_linkpp
+		echo Creating bridge $bridge $LNUM
 		ngbuddy_bridge $bridge
-		ngbuddy_linkpp
+		bridge_count=$(($bridge_count + 1))
 	done
 	echo Created $LNUM links.
 }
