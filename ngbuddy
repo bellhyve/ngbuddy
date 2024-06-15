@@ -57,9 +57,10 @@ ngbuddy_linkpp() {
 	then
 		LNUM=$((LNUM + 1))
 	else
+		# If there are no links (x), return link0, otherwise increment (y)
 		LNUM=$(ngctl list -l | awk '
-			$1 ~ /^link/ {x = int(substr($1, 5)); if(x > y) y = x}
-			END { print y ? (++y) : 0 }')
+			$1 ~ /^link/ { x = int(substr($1, 5)); if (x > y) y = x }
+			END { print (x != "") ? (++y) : 0}')
 	fi
 }
 
