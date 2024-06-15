@@ -270,7 +270,7 @@ ngbuddy_start() {
 		ngbuddy_bridge $bridge
 		bridge_count=$(($bridge_count + 1))
 	done
-	echo Created $LNUM links.
+	echo Created $(($LNUM + 1)) links.
 }
 
 # Return a netgraph link count
@@ -281,17 +281,11 @@ ngbuddy_status() {
 
 # Blindly lay waste to all netgraph nodes
 ngbuddy_stop() {
-	ngbuddy_init
-	if [ "$LNUM" = "0" ]
-	then
-		echo No links found.
-		exit 1
-	fi
-	ngctl list |\
-	awk '{print $2}'|\
-	xargs -tn1 -I% ngctl shutdown %: 2>/dev/null
-	echo Removed $LNUM links.
-	LNUM="" # In case this is a restart.
+	local shutdown_links=$( ngctl list | \
+		awk '$4 ~ /eiface|bridge/ { print $2 }'| \
+		xargs -tn1 -I% ngctl shutdown %: 2>&1 | \
+		awk 'END { print NR }')
+	echo Shut down "$shutdown_links" interfaces.
 }
 
 # Configure vm-bhyve with ngbuddy bridges (version 1.5+ required)

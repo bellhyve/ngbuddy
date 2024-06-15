@@ -64,7 +64,7 @@ Subcommands are called using **service ngbuddy _SUBCOMMAND_**. Note that all com
 :    Load the ng_bridge(4) and ng_eiface(4) options configured in **rc.conf**. See _RC.CONF VARIABLES_ below.
 
 **stop**
-:    Destroy all ng_bridge(4) and ng_eiface(4) devices, regardless of whether they were created with **ngbuddy** or not.
+:    Destroy all ng_bridge(4) and ng_eiface(4) devices, even if they were not created with Netgraph Buddy.
 
 **restart**
 :    Stop, then start.
