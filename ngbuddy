@@ -153,26 +153,27 @@ ngbuddy_unjail() {
 # Enable a private bridge and attach a new eiface.
 ngbuddy_private() {
 	bridge=$1
-	eval linkif=\$ngbuddy_${bridge}_if
+	eval if_name=\$ngbuddy_${bridge}_if
 	ngctl mkpeer eiface ether ether
 	ngeth=`ngctl list|cut -wf3|grep '^ngeth'|sort -n|tail -1`
-	ngctl name $ngeth: $linkif
-	ifconfig $ngeth name $linkif up > /dev/null
-	ngctl mkpeer $linkif: bridge ether link${LNUM}
-	ngctl name $linkif:ether $bridge
+	ngctl name $ngeth: $if_name
+	ifconfig $ngeth name $if_name up > /dev/null
+	ngbuddy_ifconfig_ether
+	ngctl mkpeer $if_name: bridge ether link${LNUM}
+	ngctl name $if_name:ether $bridge
 }
 
 # Enable a public bridge and attach an existing NIC
 ngbuddy_public() {
 	bridge=$1
-	eval linkif=\$ngbuddy_${bridge}_if
-	ngctl msg $linkif: setpromisc 1
-	ngctl msg $linkif: setautosrc 0
-	ngctl mkpeer $linkif: bridge lower link${LNUM}
+	eval if_name=\$ngbuddy_${bridge}_if
+	ngctl msg $if_name: setpromisc 1
+	ngctl msg $if_name: setautosrc 0
+	ngctl mkpeer $if_name: bridge lower link${LNUM}
 	ngbuddy_linkpp
-	ngctl name  $linkif:lower $bridge
-	ngctl connect $linkif: $bridge: upper link${LNUM}
-	ifconfig $linkif lro -tso4 -tso6 -vlanhwfilter -vlanhwtso
+	ngctl name  $if_name:lower $bridge
+	ngctl connect $if_name: $bridge: upper link${LNUM}
+	ifconfig $if_name lro -tso4 -tso6 -vlanhwfilter -vlanhwtso
 }
 
 ngbuddy_bridge() {
@@ -197,13 +198,13 @@ ngbuddy_bridge() {
 
 	# If given an existing interface, bridge to it, otherwise
 	# create an eiface
-	eval linkif=\$ngbuddy_${bridge}_if
-	if [ -z "$linkif" ]
+	eval if_name=\$ngbuddy_${bridge}_if
+	if [ -z "$if_name" ]
 	then
 		echo No interface given for bridge $bridge.
 		return 1
 	fi
-	linkmatch=`echo $linkif|tr _ .`
+	linkmatch=`echo $if_name|tr _ .`
 	if ifconfig -l|grep -qw "$linkmatch"
 	then
 		ngbuddy_public $bridge
@@ -212,7 +213,7 @@ ngbuddy_bridge() {
 	fi
 	eval linklist=\"\$ngbuddy_${bridge}_list\"
 	[ -z "$linklist" ] && return
-	echo -n "Creating $bridge eiface nodes:"
+	echo -n "Creating bridge $bridge eiface nodes:"
 	for newif in $linklist
 	do
 		echo -n " $newif"
@@ -265,7 +266,6 @@ ngbuddy_start() {
 	for bridge in $ngbuddy_bridges
 	do
 		[ -n "$bridge_count" ] && ngbuddy_linkpp
-		echo Creating bridge $bridge $LNUM
 		ngbuddy_bridge $bridge
 		bridge_count=$(($bridge_count + 1))
 	done
