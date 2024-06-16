@@ -281,11 +281,11 @@ ngbuddy_status() {
 
 # Blindly lay waste to all netgraph nodes
 ngbuddy_stop() {
-	local shutdown_links=$( ngctl list | \
+	local shutdown_nodes=$( ngctl list | \
 		awk '$4 ~ /eiface|bridge/ { print $2 }'| \
 		xargs -tn1 -I% ngctl shutdown %: 2>&1 | \
 		awk 'END { print NR }')
-	echo Shut down "$shutdown_links" interfaces.
+	echo Shut down "$shutdown_nodes" nodes.
 }
 
 # Configure vm-bhyve with ngbuddy bridges (version 1.5+ required)
