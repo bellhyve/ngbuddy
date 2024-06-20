@@ -50,12 +50,14 @@ bhyve(8)
 \f[B]service ngbuddy vmname\f[R]
 .SH DESCRIPTION
 \f[B]ngbuddy\f[R] (\[lq]Netgraph Buddy\[rq]) is an rc.d script for
-managing netgraph(4) networks in mixed vm and jail environments.
+managing netgraph(4) in mixed vm and jail environments.
 \f[B]rc.conf\f[R] variables prefixed by \f[B]ngbuddy_\f[R] are used to
 manage ng_bridge(4) and ng_eiface(4) devices upon service start (and
 system boot).
-Additional tools assist with configuring vm\-bhyve and naming their
-sockets for statistics and graphing.
+Additional tools assist with jail interface management, configuring
+vm\-bhyve, naming vm\-bhyve sockets, displaying basic statistics, and
+determining MAC addresses for easier guest migrations and avoiding MAC
+collisions.
 .SH QUICK START EXAMPLE
 The following commands will configure a system for netgraph.
 .TP

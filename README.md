@@ -27,14 +27,16 @@
 
 # DESCRIPTION
 
-**ngbuddy** ("Netgraph Buddy") is an rc.d script for managing netgraph(4) networks in mixed vm and jail environments. **rc.conf** variables prefixed by **ngbuddy_** are used to manage ng_bridge(4) and ng_eiface(4) devices upon service start (and system boot). Additional tools assist with configuring vm-bhyve and naming their sockets for statistics and graphing.
+**ngbuddy** ("Netgraph Buddy") is an rc.d script for managing netgraph(4) in mixed vm and jail environments. Netgraph provides a more flexible networking solution compared to the traditional if_bridge/epair/tap setup, a clearer and shorter list of virtual devices, and performance benefits for some workloads.
+
+**rc.conf** variables prefixed by **ngbuddy_** are used to manage ng_bridge(4) and ng_eiface(4) devices upon service start (and system boot). Additional tools assist with jail interface management, configuring vm-bhyve, naming vm-bhyve sockets, displaying basic statistics, and determine stable MAC addresses to help avoid collisions.
 
 # QUICK START EXAMPLE
 
 The following commands will configure a system for netgraph.
 
 **service ngbuddy enable**
-:    Sets **rc.conf** variables to enable the ngbuddy service. If no bridge definitions are set, the following bridge definitions will be added: \
+:    Sets **rc.conf** variables to enable the ngbuddy service. If no bridge definitions are set, the following default bridge definitions will be added: \
 :    _public_: A bridge interface associated with the host system's current default route, allowing guests to interact with the existing network. \
 :    _private_: A bridge linked to a new virtual interface named **nghost0**, suitable for host-only or NAT network with your guests. \
 
@@ -151,7 +153,7 @@ Configure the jail configuration: \
 To create more jails, you can: \
 - Copy **/jail/my_jail/** to **/jail/new_jail1/** \
 - Copy **/etc/jail.conf.d/my_jail.conf** to **new_jail1.conf** \
-- Edit the new configuration as above, chaning the word **my_jail** to **new_jail1** \
+- Edit the new configuration as above and change the word **my_jail** to **new_jail1** \
 - Run: **service jail start new_jail1** \
 - And repeat as desired. \
 
