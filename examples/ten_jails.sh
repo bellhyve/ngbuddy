@@ -1,16 +1,23 @@
 #!/bin/sh
 #
-# ten_jails
+# ten_jails.sh
 #
-# This script uses Netgraph Buddy and jail.conf to create five "public" jails
-# associated with a system's default route and 5 "private" jails which use
-# the host as a DHCP server and NAT IPv4 router. It is intended for the
-# FreeBSD ZFS VM images, such as:
+# This script is intended to be used on a blank virtual machine to illustrate
+# using Netgraph Buddy and ZFS to very quickly deploy ten jails in different
+# ways. There are no requirements besides a network connection, a FreeBSD base
+# package, and Netgraph Buddy.
 #
-#     https://download.freebsd.org/ftp/releases/VM-IMAGES/14.0-RELEASE/amd64/Latest/FreeBSD-14.0-RELEASE-amd64-zfs.raw.xz
+# Netgraph Buddy will use jail.conf to create five "public" jails associated
+# with a system's default route and 5 "private" jails which use the host as a
+# DHCP server and router.
 #
-# WARNING: Several commands are destructive. Use this example script with
-# caution.
+# This script is intended for use on an empty system with ZFS, such as the
+# FreeBSD 140 ZFS VM image:
+#
+#	https://download.freebsd.org/ftp/releases/VM-IMAGES/14.0-RELEASE/amd64/Latest/FreeBSD-14.0-RELEASE-amd64-zfs.raw.xz
+#
+# WARNING: Several commands below will overwrite jail-related files and network
+# settings; please use this script with caution.
 
 JAIL_DS=zroot/jail
 PRIVATE_NET=10.2.19
@@ -26,7 +33,7 @@ cp ngbuddy /usr/local/etc/rc.d/
 cp ngbuddy.8 /usr/local/share/man/man8/
 cp -r share/ngbuddy/ /usr/local/share/ngbuddy/
 cp examples/jail_skel.conf /etc/jail.conf.d/
-cp examples/devfs.rules /etc/
+cat examples/devfs.rules >> /etc/devfs.rules
 cd
 service ngbuddy enable
 service ngbuddy start
