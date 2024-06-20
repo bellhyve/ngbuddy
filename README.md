@@ -27,9 +27,9 @@
 
 # DESCRIPTION
 
-**ngbuddy** ("Netgraph Buddy") is an rc.d script for managing netgraph(4) in mixed vm and jail environments. Netgraph provides a more flexible networking solution compared to the traditional if_bridge/epair/tap setup, a clearer and shorter list of virtual devices, and performance benefits for some workloads.
+**ngbuddy** ("Netgraph Buddy") is an rc.d script for managing netgraph(4) in mixed vm and jail environments. Netgraph provides a more flexible networking solution compared to the traditional if_bridge/epair/tap setup, offering a clearer and shorter list of virtual devices, and performance benefits for some workloads.
 
-**rc.conf** variables prefixed by **ngbuddy_** are used to manage ng_bridge(4) and ng_eiface(4) devices upon service start (and system boot). Additional tools assist with jail interface management, configuring vm-bhyve, naming vm-bhyve sockets, displaying basic statistics, and determine stable MAC addresses to help avoid collisions.
+**rc.conf** variables prefixed by **ngbuddy_** are used to manage ng_bridge(4) and ng_eiface(4) devices upon service start (and system boot). Additional tools assist with jail interface management, configuring vm-bhyve, naming vm-bhyve sockets, displaying basic statistics, and determining stable MAC addresses to help avoid collisions.
 
 # QUICK START EXAMPLE
 

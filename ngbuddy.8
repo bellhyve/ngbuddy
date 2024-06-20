@@ -51,20 +51,23 @@ bhyve(8)
 .SH DESCRIPTION
 \f[B]ngbuddy\f[R] (\[lq]Netgraph Buddy\[rq]) is an rc.d script for
 managing netgraph(4) in mixed vm and jail environments.
+Netgraph provides a more flexible networking solution compared to the
+traditional if_bridge/epair/tap setup, offering a clearer and shorter
+list of virtual devices, and performance benefits for some workloads.
+.PP
 \f[B]rc.conf\f[R] variables prefixed by \f[B]ngbuddy_\f[R] are used to
 manage ng_bridge(4) and ng_eiface(4) devices upon service start (and
 system boot).
 Additional tools assist with jail interface management, configuring
 vm\-bhyve, naming vm\-bhyve sockets, displaying basic statistics, and
-determining MAC addresses for easier guest migrations and avoiding MAC
-collisions.
+determining stable MAC addresses to help avoid collisions.
 .SH QUICK START EXAMPLE
 The following commands will configure a system for netgraph.
 .TP
 \f[B]service ngbuddy enable\f[R]
 Sets \f[B]rc.conf\f[R] variables to enable the ngbuddy service.
-If no bridge definitions are set, the following bridge definitions will
-be added:
+If no bridge definitions are set, the following default bridge
+definitions will be added:
 .PD 0
 .P
 .PD
@@ -288,7 +291,7 @@ To create more jails, you can:
 .PD 0
 .P
 .PD
-\- Edit the new configuration as above, chaning the word
+\- Edit the new configuration as above and change the word
 \f[B]my_jail\f[R] to \f[B]new_jail1\f[R]
 .PD 0
 .P
