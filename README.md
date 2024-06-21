@@ -27,15 +27,18 @@
 
 # DESCRIPTION
 
-**ngbuddy** ("Netgraph Buddy") is an rc.d script for managing netgraph(4) networks in mixed vm and jail environments. **rc.conf** variables prefixed by **ngbuddy_** are used to manage "permanent" ng_bridge(4) and ng_eiface(4) devices.  Additional tools assist with configuring vm-bhyve and naming their sockets for statistics and graphing.
+**ngbuddy** ("Netgraph Buddy") is an rc.d script for managing netgraph(4) in mixed vm and jail environments. Netgraph provides a more flexible networking solution compared to the traditional if_bridge/epair/tap setup, offering a clearer and shorter list of virtual devices, and performance benefits for some workloads.
+
+**rc.conf** variables prefixed by **ngbuddy_** are used to manage ng_bridge(4) and ng_eiface(4) devices upon service start (and system boot). Additional tools assist with jail interface management, configuring vm-bhyve, naming vm-bhyve sockets, displaying basic statistics, and determining stable MAC addresses to help avoid collisions.
 
 # QUICK START EXAMPLE
 
-The following commands will configure a system for netgraph in a way that is suitable for most common setups on systems where no netgraph configuration currently exists.
+The following commands will configure a system for netgraph.
 
 **service ngbuddy enable**
-:    Set **rc.conf** variables and create a _public_ bridge interface associated with the host system's default route, then create a _private_ bridge linked to a virtual interface named **nghost0** suitable for a local or NAT interfaces. It will append three **rc.conf** lines similar to the following, which you can modify before starting the service:
-
+:    Sets **rc.conf** variables to enable the ngbuddy service. If no bridge definitions are set, the following default bridge definitions will be added: \
+:    _public_: A bridge interface associated with the host system's current default route, allowing guests to interact with the existing network. \
+:    _private_: A bridge linked to a new virtual interface named **nghost0**, suitable for host-only or NAT network with your guests. \
 
 ```sh
 	ngbuddy_enable="YES"
@@ -44,27 +47,25 @@ The following commands will configure a system for netgraph in a way that is sui
 ```
 
 **service ngbuddy start**
-:    This command creates the above interfaces.
+:    Creates bridges and interfaces defined in **rc.conf**.
 
 **service ngbuddy vmconf**
-:    Add the our "public" and "private" bridges to the vm(8) configuration.
+:    Adds our _public_ and _private_ bridges to the vm(8) configuration, as a substitute for the **vm switch ...*** commands.
 
-If you'd like to use host-only or NAT interface, you must configure the newly created **nghost0** interface. For example, you may want to set up IP addresses, a DNS resolver, and a DHCP server.
-
-Once post-configuration is to your liking, create jails or bhyve instances attached to your _public_ or _private_ bridges as you prefer. See the **jail_skel.conf** for assistance configuring jails.
+To get the most out of the _private_ bridge, configure **nghost0** with an IP address and add a NAT service to allow your guests to have access to the network. See the **examples** in the **ngbuddy** repository for demo scripts.
 
 # SUBCOMMANDS
 
-Subcommands are called using **service ngbuddy _SUBCOMMAND_**. Note that all commands rely on ngctl(8) and require root permissions.
+Subcommands are called using **service ngbuddy** _SUBCOMMAND_. Note that all commands rely on ngctl(8) and require root permissions.
 
 **enable**
-:    Create a basic default **ngbuddy** configuration and enable the service.
+:    Enable the **ngbuddy** service. If no bridges are defined, a _public_ and _private_ bridge will be created. See _QUICK START EXAMPLE_ above for details.
 
 **start**
-:    Load the ng_bridge(4) and ng_eiface(4) options configured in **rc.conf**. See _RC.CONF VARIABLES_ below.
+:    Load the bridge and eiface options configured in **rc.conf**. See _RC.CONF VARIABLES_ below for a complete list of options.
 
 **stop**
-:    Destroy all ng_bridge(4) and ng_eiface(4) devices, regardless of whether they were created with **ngbuddy** or not.
+:    Destroy all ng_bridge(4) and ng_eiface(4) devices, even if they were not created with **ngbuddy**.
 
 **restart**
 :    Stop, then start.
@@ -73,22 +74,22 @@ Subcommands are called using **service ngbuddy _SUBCOMMAND_**. Note that all com
 :    Print a list of ng_bridge(4), ng_eiface(4), and ng_socket(4) devices and basic usage statistics.
 
 **bridge** _bridge_ _interface_
-:    Create a bridge and an associated **rc.conf** entry. If the _interface_ exists, _bridge_ will be associated with it. Otherwise, _interface_ will be created as a new ng_eiface(4) device.
+:    Create a bridge and an associated **rc.conf** entry. If the _interface_ exists, _bridge_ will be associated with it. Otherwise, _interface_ will be created as a new eiface node.
 
 **unbridge** _bridge_
-:    Remove the indicated bridge from netgraph and **rc.conf**. This operation will fail if devices appear to be attached to it.
+:    Remove the indicated bridge from netgraph and **rc.conf**.
 
 **jail** _interface_ [_bridge_] 
-:    Create a new ng_eiface(4) associated with the indicated _bridge_. If only one ng_bridge(4) is present, _bridge_ may be omitted.
+:    Create a new eiface associated with the indicated _bridge_. If only one ng_bridge(4) is present, _bridge_ may be omitted.
 
 **unjail** _interface_ [_jail_]
-:    Remove an ng_eiface(4) associated with the indicated _jail_. If the _interface_ matches the jail name, _jail_ may be omitted.
+:    Shut down the eiface associated with the indicated _jail_. If the _interface_ matches the jail name, _jail_ may be omitted.
 
 **create** _interface_ [_bridge_]
-:    Create a new ng_eiface(4) associated with the indicated _bridge_ and add it to **rc.conf** so it will be created on startup. If only one ng_bridge(4) is present, _bridge_ may be omitted.
+:    Create a new eiface associated with the indicated _bridge_ and add it to **rc.conf** so it will be created on startup. If only one bridge is configured, _bridge_ may be omitted.
 
 **destroy** _interface_
-:    Remove the indicated ng_eiface(4) and remove it from **rc.conf**.
+:    Shut down the indicated eiface and remove it from **rc.conf**.
 
 **vmconf**
 :    Add the bridges configured in **rc.conf** to the vm(8) configuration, e.g., **/vm/.config/system.conf**.
@@ -98,7 +99,7 @@ Subcommands are called using **service ngbuddy _SUBCOMMAND_**. Note that all com
 
 # RC.CONF VARIABLES
 
-The following variables can be manually configured Some of the above subcommands will use sysrc(8) to configure rc.conf with the following variables for persistent configuration on service restart or system reboot, which can also be edited manually.
+The following variables can be manually configured. Some of the above subcommands will use sysrc(8) to configure rc.conf with the following variables for persistent configuration on service restart or system reboot.
 
 _ngbuddy_enable_
 :    Set to _YES_ to enable the service. 
@@ -107,13 +108,13 @@ _ngbuddy\_(_BRIDGE_)\_if_
 :    Link a new ng_bridge(4) device named _BRIDGE_ to the indicated interface, e.g., _eth0_. If the interface already exists, link it to the new bridge and disable LRO/TSO. If the interface does not exist, create it as an ng_eiface(4) device. This variable will be set with the **bridge** and **unbridge** subcommands.
 
 _ngbuddy\_(_BRIDGE_)\_list_
-:    A space delimited list of additional ng_eiface(4) devices that will be attached to _BRIDGE_ at startup. This variable will be set with the **create** and **destroy** subcommands.
+:    A space delimited list of additional ng_eiface(4) devices that will be attached to _BRIDGE_ at startup. This variables will be set with the **create** and **destroy** subcommands.
 
 _ngbuddy_set_mac_
-:    If set to _YES_, created ng_eiface hardware addresses will be determined only from a hash of the interface name; this ensures each interface's MAC address is stable between hosts. If set to another string, such as a host or domain name, add that seed to the MAC address generator. The default behavior will used FreeBSD's default MAC address generator, which is prone to MAC address collisions in large networks.
+:    If set to _YES_, eiface hardware addresses will be determined from a hash of the interface name, ensuring that the interfaces' MAC address are stable between hosts. If set to a string besides _YES_, that string will be added to the MAC address generator's seed.
 
 _ngbuddy_set_mac_prefix_
-:    Override the default MAC address prefix of **58:9C:FC** (the OUI of the FreeBSD Foundation). For example, you can set _ngbuddy_set_mac_prefix="02"_ to minimize the risk of collisions.
+:    Override the default MAC address prefix of **58:9C:FC** (the OUI of the FreeBSD Foundation). For example, you can set _ngbuddy_set_mac_prefix="02"_ to minimize the risk of collisions. _ngbuddy_set_mac_ must also be enabled to use this feature.
 
 _ngbuddy_set_mac_hash_
 :    Override the default hash command of **sha1** with the command indicated. The command's output will receive the seed through standard input (see _ngbuddy_set_mac_) and must return enough hexadecimal characters to complete the MAC address.
@@ -128,15 +129,12 @@ _ngbuddy_set_mac_hash_
 **/usr/local/share/ngbuddy/ngbuddy-mmd.awk**
 :    An alternative to **ngctl dot** that creates a Mermaid-JS color diagram of netgraph nodes.
 
-# NOTES
-
-These scripts were developed to assist with new netgraph features in **vm-bhyve 1.5+**, and were inspired by the **/usr/share/examples/jails/jng** example script and additional examples by Klara Systems.
-
 # EXAMPLES
+For examples and demo scripts, see **examples** at: https://github.com/bellhyve/netgraph-buddy
 
 **Example 1: Quickly deploy a VNET jail with netgraph using jail.conf.d**
 
-The following steps will configure a jail attached to the interface associated with your default route, likely your LAN, using DHCP. See the files in **examples** at: https://github.com/bellhyve/netgraph-buddy
+The following steps will configure a jail attached to the interface associated with the host's current default route, likely your LAN, using DHCP.
 
 First, set up Netgraph Buddy: \
 - **service ngbuddy enable** \
@@ -155,9 +153,9 @@ Configure the jail configuration: \
 To create more jails, you can: \
 - Copy **/jail/my_jail/** to **/jail/new_jail1/** \
 - Copy **/etc/jail.conf.d/my_jail.conf** to **new_jail1.conf** \
-- Edit the new configuration as above, chaning the word **my_jail** to **new_jail1** \
-- Run: **service jail start new_jail1**
-- And repeat as desired.
+- Edit the new configuration as above and change the word **my_jail** to **new_jail1** \
+- Run: **service jail start new_jail1** \
+- And repeat as desired. \
 
 **Example 2: An rc.conf example for a slightly more complex setup**
 
@@ -200,6 +198,10 @@ wan
   ix0 (upper): RX 30.69 KB, TX 46.16 KB
   ix0 (lower): RX 46.32 KB, TX 30.92 KB
 ```
+
+# NOTES
+
+These scripts were developed to assist with new netgraph features in **vm-bhyve 1.5+**, and were inspired by the **/usr/share/examples/jails/jng** example script and additional examples by Klara Systems.
 
 # SEE ALSO
 
