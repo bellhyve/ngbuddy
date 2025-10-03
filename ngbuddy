@@ -1,8 +1,8 @@
 #!/bin/sh
 
 # PROVIDE:	ngbuddy
-# REQUIRE:	FILESYSTEMS
-# BEFORE:	NETWORKING
+# REQUIRE:	netif
+# BEFORE:	routing
 
 # See ngbuddy(8) for configuration details. For manual configuration,
 # add the following to /etc/rc.conf[.local]:
@@ -15,6 +15,7 @@
 #	Create additional ng_eiface devices attached to BRIDGE.
 
 . /etc/rc.subr
+. /etc/network.subr
 
 name="ngbuddy"
 desc="configures netgraph bridge and eiface devices"
@@ -100,6 +101,7 @@ ngbuddy_create_eiface() {
 	ngctl name "$ng_if:" "$if_name"
 	ifconfig "$ng_if" name "$if_name" >/dev/null
 	ngbuddy_ifconfig_ether
+	ifn_start "$if_name"
 }
 
 ngbuddy_create_eiface_permanent() {
