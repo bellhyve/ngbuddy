@@ -164,6 +164,7 @@ ngbuddy_private() {
 	ngbuddy_ifconfig_ether
 	ngctl mkpeer $if_name: bridge ether link${LNUM}
 	ngctl name $if_name:ether $bridge
+	ifn_start "$if_name"
 }
 
 # Enable a public bridge and attach an existing NIC
