@@ -59,16 +59,11 @@ ngbuddy_linkpp() {
 		LNUM=$((LNUM + 1))
 	else
 		# If there are no links (x), return link0, otherwise increment (y)
+		kldload -nq ng_ether ng_bridge
 		LNUM=$(ngctl list -l | awk '
 			$1 ~ /^link/ { x = int(substr($1, 5)); if (x > y) y = x }
 			END { print (x != "") ? (++y) : 0}')
 	fi
-}
-
-# Make sure netgraph is loaded and count its links.
-ngbuddy_init() {
-	kldload -nq ng_ether ng_bridge
-	[ -z "$LNUM" ] && ngbuddy_linkpp
 }
 
 # Set a MAC address
@@ -89,7 +84,7 @@ ngbuddy_ifconfig_ether() {
 
 # Attach a new eiface to a bridge
 ngbuddy_create_eiface() {
-	ngbuddy_init
+	ngbuddy_linkpp
 	if_name="$1"
 	bridge="${2:-$(echo $ngbuddy_bridges | awk '{print $1}')}"
 	if ifconfig "$if_name" > /dev/null 2>&1; then
@@ -183,7 +178,7 @@ ngbuddy_public() {
 ngbuddy_bridge() {
 	bridge=$1
 	bridgeif=$2
-	ngbuddy_init
+	ngbuddy_linkpp
 
 	# Check for bridge name conflicts
 	brmatch=`echo $bridge|tr _ .`
@@ -259,7 +254,7 @@ ngbuddy_shutdown_bridge() {
 
 # Create nodes and ifaces defined in rc.conf
 ngbuddy_start() {
-	ngbuddy_init
+	ngbuddy_linkpp
 	local bridge_count
 	echo Starting $name.
 	if [ "$LNUM" -gt 0 ]
