@@ -46,7 +46,7 @@ ngbuddy_enable() {
 	if [ -z "$ngbuddy_bridges" ]
 	then
 		echo Adding default public and private bridges.
-		local public_if="$(netstat -rn | awk '/default/{gsub("\\.","_",$4);print $4}')"
+		local public_if="$(netstat -rn | awk '/default/{gsub("\\.","_",$4);print $4;exit}')"
 		[ -n "$public_if" ] && sysrc ngbuddy_public_if="$public_if"
 		sysrc ngbuddy_private_if="nghost0"
 	fi
