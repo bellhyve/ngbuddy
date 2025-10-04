@@ -25,16 +25,24 @@ BEGIN {
 				bridge_name = $2
 				print bridge_name
 			} else { bridge_name = "" }
-		} else if (bridge_name && sub(/link/,"",$1)) {
+		} else if (bridge_name && $1 ~ /^(up)?link[0-9]+$/) {
+			hook = $1
+			is_uplink = (hook ~ /^uplink/)
+			link_num = hook
+			sub(/^uplink/, "", link_num)
+			sub(/^link/, "", link_num)
+			if (is_uplink) link_num = -link_num
 			if ($5=="upper") { $2 = $2" (upper)" }
 			else if ($5=="lower") { $2 = $2" (lower)" }
 			link_name = $2
-			statcmd = "ngctl msg "bridge_name": getstats "$1
+			delete stats
+			statcmd = "ngctl msg "bridge_name": getstats \""link_num"\""
 			statcmd|getline
 			statcmd|getline
+			close(statcmd)
 			getstats()
-			inbytes=bytes(stats["recvOctets"])
-			outbytes=bytes(stats["xmitOctets"])
+			inbytes=bytes(stats["recvOctets"]+0)
+			outbytes=bytes(stats["xmitOctets"]+0)
 			print "  " link_name ": RX "inbytes", TX "outbytes
 		}
 

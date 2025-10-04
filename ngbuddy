@@ -4,6 +4,8 @@
 # REQUIRE:	netif
 # BEFORE:	routing
 
+# ngbuddy 1.1
+# 
 # See ngbuddy(8) for configuration details. For manual configuration,
 # add the following to /etc/rc.conf[.local]:
 #
@@ -37,6 +39,8 @@ extra_commands="bridge create destroy jail unbridge unjail vmconf vmname"
 
 load_rc_config "$ngbuddy"
 : ${ngbuddy_bridges:="`list_vars 'ngbuddy_*_if'|sed -E 's/^ngbuddy_|_if$//g'|xargs`"}
+: ${ngbuddy_max_retries:=1024}
+: ${ngbuddy_public_hooks:=uplink}
 : ${ngbuddy_share_dir:="/usr/local/share/ngbuddy"}
 
 # Enable Netgraph Buddy and add default bridges if none are defined
@@ -46,29 +50,34 @@ ngbuddy_enable() {
 	if [ -z "$ngbuddy_bridges" ]
 	then
 		echo Adding default public and private bridges.
-		local public_if="$(netstat -rn | awk '/default/{gsub("\\.","_",$4);print $4;exit}')"
+		# Keep ifconfig name (dots); convert to underscores only for ngctl.
+		local public_if="$(netstat -rn | awk '/default/{print $4;exit}')"
 		[ -n "$public_if" ] && sysrc ngbuddy_public_if="$public_if"
 		sysrc ngbuddy_private_if="nghost0"
 	fi
 }
 
-# Set LNUM to next available link
-ngbuddy_linkpp() {
-	if [ -n "$LNUM" ]
-	then
-		LNUM=$((LNUM + 1))
-	else
-		# If there are no links (x), return link0, otherwise increment (y)
-		LNUM=$(ngctl list -l | awk '
-			$1 ~ /^link/ { x = int(substr($1, 5)); if (x > y) y = x }
-			END { print (x != "") ? (++y) : 0}')
-	fi
+# Netgraph node names cannot contain '.'; ng_ether converts them to '_'.
+ngbuddy_ng_name() {
+	echo "$1" | tr . _
 }
 
-# Make sure netgraph is loaded and count its links.
+# Load netgraph and count existing bridge hooks for the start-time guard.
 ngbuddy_init() {
 	kldload -nq ng_ether ng_bridge
-	[ -z "$LNUM" ] && ngbuddy_linkpp
+	NGHOOKS=$(ngctl list -l 2>/dev/null | awk \
+		'$1 ~ /^(up)?link[0-9]+$/ { hooks++ } END { print hooks + 0 }')
+}
+
+# Set LNUM to the next available ordinary link on a specific bridge.
+ngbuddy_linkpp() {
+	kldload -nq ng_ether ng_bridge
+	LNUM=$(ngctl show "$1:" 2>/dev/null | awk '
+		$1 ~ /^link[0-9]+$/ {
+			n = int(substr($1, 5))
+			if (n >= nextlink) nextlink = n + 1
+		}
+		END { print nextlink + 0 }')
 }
 
 # Set a MAC address
@@ -89,18 +98,35 @@ ngbuddy_ifconfig_ether() {
 
 # Attach a new eiface to a bridge
 ngbuddy_create_eiface() {
-	ngbuddy_init
 	if_name="$1"
 	bridge="${2:-$(echo $ngbuddy_bridges | awk '{print $1}')}"
+	ngbuddy_linkpp "$bridge"
+	local error retries=0
 	if ifconfig "$if_name" > /dev/null 2>&1; then
 		echo "$if_name" already exists.
 		return
 	fi
-	ngctl mkpeer "$bridge:" eiface "link${LNUM}" ether
+	while ! error="$(ngctl mkpeer "$bridge:" eiface "link${LNUM}" ether 2>&1)"
+	do
+		if ngctl show "$bridge:link${LNUM}" > /dev/null 2>&1
+		then
+			retries=$((retries + 1))
+			if [ "$retries" -gt "$ngbuddy_max_retries" ]
+			then
+				echo "Unable to claim a link on $bridge after $ngbuddy_max_retries retries." >&2
+				return 1
+			fi
+			LNUM=$((LNUM + 1))
+		else
+			echo "$error" >&2
+			return 1
+		fi
+	done
 	local ng_if="$(ngctl show -n "$bridge:link${LNUM}" |awk '{print $2}')"
 	ngctl name "$ng_if:" "$if_name"
 	ifconfig "$ng_if" name "$if_name" >/dev/null
 	ngbuddy_ifconfig_ether
+	ngbuddy_bridge_seed_mac "$bridge" "link${LNUM}" "$if_name"
 	ifn_start "$if_name"
 }
 
@@ -153,6 +179,23 @@ ngbuddy_unjail() {
 	ngbuddy_shutdown_eiface "$if_name"
 }
 
+# Record an eiface MAC on its bridge hook before VNET handoff.
+# FreeBSD 14 cannot always learn MACs from eifaces moved into VNET jails;
+# pre-seeding keeps unicast return traffic working with uplink-first bridges.
+ngbuddy_bridge_seed_mac() {
+	local bridge="$1" hook="$2" if_name="$3" mac
+	mac="$(ifconfig "$if_name" | awk '/ether / { print $2; exit }')"
+	[ -n "$mac" ] || return 0
+	ngctl msg "${bridge}:" movehost "{ addr=${mac} hook=\"${hook}\" }" >/dev/null
+}
+
+# Prefer long-lived L2 entries so pre-seeded jail MACs are not forgotten quickly.
+ngbuddy_bridge_set_staleness() {
+	ngctl msg "$1:" setconfig \
+		"{ debugLevel=1 loopTimeout=60 maxStaleness=65535 minStableAge=1 }" \
+		>/dev/null
+}
+
 # Enable a private bridge and attach a new eiface.
 ngbuddy_private() {
 	bridge=$1
@@ -164,26 +207,46 @@ ngbuddy_private() {
 	ngbuddy_ifconfig_ether
 	ngctl mkpeer $if_name: bridge ether link${LNUM}
 	ngctl name $if_name:ether $bridge
+	ngbuddy_bridge_set_staleness "$bridge"
+	ngbuddy_bridge_seed_mac "$bridge" "link${LNUM}" "$if_name"
 	ifn_start "$if_name"
 }
 
-# Enable a public bridge and attach an existing NIC
+# Enable a public bridge and attach an existing NIC.
+# Default uplink hooks avoid learning outside-world MACs; set
+# ngbuddy_public_hooks=link for ordinary flooded link0/link1 instead.
 ngbuddy_public() {
 	bridge=$1
 	eval if_name=\$ngbuddy_${bridge}_if
-	ngctl msg $if_name: setpromisc 1
-	ngctl msg $if_name: setautosrc 0
-	ngctl mkpeer $if_name: bridge lower link${LNUM}
-	ngbuddy_linkpp
-	ngctl name  $if_name:lower $bridge
-	ngctl connect $if_name: $bridge: upper link${LNUM}
+	local ng_name lower_hook upper_hook
+	ng_name="$(ngbuddy_ng_name "$if_name")"
+	case "$ngbuddy_public_hooks" in
+		[Ll][Ii][Nn][Kk])
+			lower_hook=link0
+			upper_hook=link1
+			;;
+		[Uu][Pp][Ll][Ii][Nn][Kk]|'')
+			lower_hook=uplink1
+			upper_hook=uplink2
+			;;
+		*)
+			echo "ngbuddy_public_hooks must be link or uplink." >&2
+			return 1
+			;;
+	esac
+	ngctl msg $ng_name: setpromisc 1
+	ngctl msg $ng_name: setautosrc 0
+	ngctl mkpeer $ng_name: bridge lower $lower_hook
+	ngctl name  $ng_name:lower $bridge
+	ngctl connect $ng_name: $bridge: upper $upper_hook
+	ngbuddy_bridge_set_staleness "$bridge"
 	ifconfig $if_name lro -tso4 -tso6 -vlanhwfilter -vlanhwtso
 }
 
 ngbuddy_bridge() {
 	bridge=$1
 	bridgeif=$2
-	ngbuddy_init
+	ngbuddy_linkpp "$bridge"
 
 	# Check for bridge name conflicts
 	brmatch=`echo $bridge|tr _ .`
@@ -221,7 +284,6 @@ ngbuddy_bridge() {
 	for newif in $linklist
 	do
 		echo -n " $newif"
-		ngbuddy_linkpp
 		ngbuddy_create_eiface $newif $bridge
 	done
 	echo
@@ -241,12 +303,13 @@ ngbuddy_shutdown_bridge() {
 	eval bridgeif=\$ngbuddy_${bridge}_if
 	if [ -n "$bridgeif" ]
 	then
-		iftype=`ngctl list|grep -w $bridgeif|cut -wf5`
-		if [ "$iftype" == "eiface" ]
+		local ng_bridgeif
+		ng_bridgeif="$(ngbuddy_ng_name "$bridgeif")"
+		iftype=`ngctl list|awk -v n="$ng_bridgeif" '$2==n {print $4}'`
+		if [ "$iftype" = "eiface" ]
 		then
 			echo "Shutdown $bridgeif"
-			ngctl shutdown "${bridgeif}:"
-		else
+			ngctl shutdown "${ng_bridgeif}:"
 		fi
 	fi
 	echo Shutdown bridge $bridge
@@ -260,20 +323,19 @@ ngbuddy_shutdown_bridge() {
 # Create nodes and ifaces defined in rc.conf
 ngbuddy_start() {
 	ngbuddy_init
-	local bridge_count
 	echo Starting $name.
-	if [ "$LNUM" -gt 0 ]
+	if [ "${NGHOOKS:-0}" -gt 0 ]
 	then
-		echo Netgraph already initialized with $LNUM links.
+		echo Netgraph already initialized with $NGHOOKS bridge hooks.
 		exit 1
 	fi
 	for bridge in $ngbuddy_bridges
 	do
-		[ -n "$bridge_count" ] && ngbuddy_linkpp
 		ngbuddy_bridge $bridge
-		bridge_count=$(($bridge_count + 1))
 	done
-	echo Created $(($LNUM + 1)) links.
+	local created
+	created=$(ngctl list -l | awk '$1 ~ /^(up)?link[0-9]+$/ { n++ } END { print n+0 }')
+	echo Created "$created" bridge hooks.
 }
 
 # Return a netgraph link count
