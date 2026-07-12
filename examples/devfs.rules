@@ -1,6 +1,6 @@
 # /etc/devfs.rules
 #
-# This is a helpful ruleset that allows bpf (for DHCP) and pf.
+# Ruleset for VNET jails that need bpf (DHCP), pf, fuse, and zfs.
 
 [devfsrules_jail_dhcp=25]
 add include $devfsrules_hide_all
