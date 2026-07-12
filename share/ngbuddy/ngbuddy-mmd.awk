@@ -45,7 +45,7 @@ function get_ng_links() {
 				bridge_list[bridge]=1
 				label[bridge] = "BR"++b
 			} else { bridge = "" }
-		} else if (bridge && sub(/link/,"",$1)) {
+		} else if (bridge && $1 ~ /^(up)?link[0-9]+$/) {
 			peer = $2
 			if (label[peer]) continue
 			label[peer] = "IF"(++i)

@@ -46,23 +46,37 @@ ngbuddy_enable() {
 	if [ -z "$ngbuddy_bridges" ]
 	then
 		echo Adding default public and private bridges.
-		local public_if="$(netstat -rn | awk '/default/{gsub("\\.","_",$4);print $4;exit}')"
+		# Keep ifconfig name (dots); convert to underscores only for ngctl.
+		local public_if="$(netstat -rn | awk '/default/{print $4;exit}')"
 		[ -n "$public_if" ] && sysrc ngbuddy_public_if="$public_if"
 		sysrc ngbuddy_private_if="nghost0"
 	fi
 }
 
-# Set LNUM to next available link
+# Netgraph node names cannot contain '.'; ng_ether converts them to '_'.
+ngbuddy_ng_name() {
+	echo "$1" | tr . _
+}
+
+# Set LNUM to next available linkN (uplink hooks are tracked separately).
+# Also sets NGHOOKS to total link* + uplink* count for start-time guards.
 ngbuddy_linkpp() {
 	if [ -n "$LNUM" ]
 	then
 		LNUM=$((LNUM + 1))
 	else
-		# If there are no links (x), return link0, otherwise increment (y)
 		kldload -nq ng_ether ng_bridge
-		LNUM=$(ngctl list -l | awk '
-			$1 ~ /^link/ { x = int(substr($1, 5)); if (x > y) y = x }
-			END { print (x != "") ? (++y) : 0}')
+		eval "$(ngctl list -l | awk '
+			$1 ~ /^link[0-9]+$/ {
+				n = int(substr($1, 5))
+				if (n >= nextlink) nextlink = n + 1
+				hooks++
+			}
+			$1 ~ /^uplink[0-9]+$/ { hooks++ }
+			END {
+				print "LNUM=" (nextlink + 0)
+				print "NGHOOKS=" (hooks + 0)
+			}')"
 	fi
 }
 
@@ -162,16 +176,19 @@ ngbuddy_private() {
 	ifn_start "$if_name"
 }
 
-# Enable a public bridge and attach an existing NIC
+# Enable a public bridge and attach an existing NIC.
+# Use uplink hooks so the bridge does not learn outside-world MACs.
+# Hook name "uplink" auto-assigns uplink1, uplink2, ... (uplink0 is invalid).
 ngbuddy_public() {
 	bridge=$1
 	eval if_name=\$ngbuddy_${bridge}_if
-	ngctl msg $if_name: setpromisc 1
-	ngctl msg $if_name: setautosrc 0
-	ngctl mkpeer $if_name: bridge lower link${LNUM}
-	ngbuddy_linkpp
-	ngctl name  $if_name:lower $bridge
-	ngctl connect $if_name: $bridge: upper link${LNUM}
+	local ng_name
+	ng_name="$(ngbuddy_ng_name "$if_name")"
+	ngctl msg $ng_name: setpromisc 1
+	ngctl msg $ng_name: setautosrc 0
+	ngctl mkpeer $ng_name: bridge lower uplink
+	ngctl name  $ng_name:lower $bridge
+	ngctl connect $ng_name: $bridge: upper uplink
 	ifconfig $if_name lro -tso4 -tso6 -vlanhwfilter -vlanhwtso
 }
 
@@ -216,7 +233,6 @@ ngbuddy_bridge() {
 	for newif in $linklist
 	do
 		echo -n " $newif"
-		ngbuddy_linkpp
 		ngbuddy_create_eiface $newif $bridge
 	done
 	echo
@@ -236,12 +252,13 @@ ngbuddy_shutdown_bridge() {
 	eval bridgeif=\$ngbuddy_${bridge}_if
 	if [ -n "$bridgeif" ]
 	then
-		iftype=`ngctl list|grep -w $bridgeif|cut -wf5`
-		if [ "$iftype" == "eiface" ]
+		local ng_bridgeif
+		ng_bridgeif="$(ngbuddy_ng_name "$bridgeif")"
+		iftype=`ngctl list|awk -v n="$ng_bridgeif" '$2==n {print $4}'`
+		if [ "$iftype" = "eiface" ]
 		then
 			echo "Shutdown $bridgeif"
-			ngctl shutdown "${bridgeif}:"
-		else
+			ngctl shutdown "${ng_bridgeif}:"
 		fi
 	fi
 	echo Shutdown bridge $bridge
@@ -257,9 +274,9 @@ ngbuddy_start() {
 	ngbuddy_linkpp
 	local bridge_count
 	echo Starting $name.
-	if [ "$LNUM" -gt 0 ]
+	if [ "${NGHOOKS:-0}" -gt 0 ]
 	then
-		echo Netgraph already initialized with $LNUM links.
+		echo Netgraph already initialized with $NGHOOKS bridge hooks.
 		exit 1
 	fi
 	for bridge in $ngbuddy_bridges
@@ -268,7 +285,9 @@ ngbuddy_start() {
 		ngbuddy_bridge $bridge
 		bridge_count=$(($bridge_count + 1))
 	done
-	echo Created $(($LNUM + 1)) links.
+	local created
+	created=$(ngctl list -l | awk '$1 ~ /^(up)?link[0-9]+$/ { n++ } END { print n+0 }')
+	echo Created "$created" bridge hooks.
 }
 
 # Return a netgraph link count

@@ -1,12 +1,12 @@
 # Netgraph Buddy FAQ
 
-This FAQ is adapapted from the previous release notes. Please see `man ngbuddy` (also available in the repo as README.md) for detailed usage instructions.
+This FAQ is adapted from the previous release notes. Please see `man ngbuddy` (also available in the repo as README.md) for detailed usage instructions.
 
 ## Old Notes
 
 These scripts were developed to assist with new netgraph features in **vm-bhyve 1.5+**, and were inspired by [jng](https://github.com/freebsd/freebsd-src/blob/main/share/examples/jails/jng) and [the Netgraph article by Klara Systems](https://klarasystems.com/articles/using-netgraph-for-freebsds-bhyve-networking/).
 
-## Further detail on ustomizing and extending ngup
+## Further detail on customizing and extending ngbuddy
 
 The default **public** bridge binds to a real interface associated with the default route.
 
