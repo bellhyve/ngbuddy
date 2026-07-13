@@ -15,7 +15,9 @@
 # WARNING: Overwrites jail-related files and network settings (pf.conf,
 # dnsmasq.conf, jail list). Use only on a disposable system.
 
-JAIL_DS=zroot/jail
+# Override for non-zroot hosts, e.g. JAIL_DS=bootdev2/ngbuddy_smoke
+JAIL_DS=${JAIL_DS:-zroot/jail}
+JAIL_MNT=${JAIL_MNT:-/jail}
 PRIVATE_NET=10.2.19
 EXAMPLES=/usr/local/share/ngbuddy/examples
 RELEASE=$(uname -r | sed 's/-p[0-9]*//')
@@ -33,13 +35,18 @@ service devfs restart
 
 service ngbuddy enable
 service ngbuddy start
+# ensure private bridge exists (enable only seeds defaults when none are set)
+if ! ngctl list | awk '$2=="private" && $4=="bridge" { found=1 } END { exit !found }'; then
+	service ngbuddy bridge private nghost0
+fi
 
 # Jail template from matching FreeBSD base set
 JAIL_SKEL_DS=$JAIL_DS/jail_skel
 JAIL_SKEL_CONF=/etc/jail.conf.d/jail_skel.conf
+zfs create -p -o mountpoint="$JAIL_MNT" "$JAIL_DS" 2>/dev/null || \
+	zfs set mountpoint="$JAIL_MNT" "$JAIL_DS"
 zfs create -p "$JAIL_SKEL_DS"
-zfs set mountpoint=/jail "$JAIL_DS"
-JAIL_DIR=/jail/jail_skel
+JAIL_DIR=$JAIL_MNT/jail_skel
 BASE_TXZ=base.txz
 if [ ! -e "$BASE_TXZ" ]; then
 	fetch -o "$BASE_TXZ" \
@@ -56,12 +63,14 @@ zfs snapshot "${JAIL_SKEL_DS}@a"
 for j in $(jot 5); do
 	jname=pubjail$j
 	zfs clone "${JAIL_SKEL_DS}@a" "$JAIL_DS/$jname"
-	sed "s/jail_skel/$jname/g" "$JAIL_SKEL_CONF" > "/etc/jail.conf.d/$jname.conf"
+	sed -e "s/jail_skel/$jname/g" -e "s|/jail/|${JAIL_MNT}/|g" \
+		"$JAIL_SKEL_CONF" > "/etc/jail.conf.d/$jname.conf"
 	sysrc jail_list+="$jname"
 
 	jname=prijail$j
 	zfs clone "${JAIL_SKEL_DS}@a" "$JAIL_DS/$jname"
-	sed -e "s/jail_skel/$jname/g" -e 's/public/private/' \
+	sed -e "s/jail_skel/$jname/g" -e 's/"public"/"private"/' \
+		-e "s|/jail/|${JAIL_MNT}/|g" \
 		"$JAIL_SKEL_CONF" > "/etc/jail.conf.d/$jname.conf"
 	sysrc jail_list+="$jname"
 done
@@ -71,13 +80,17 @@ EXT_IF=$(netstat -rn | awk '$1 == "default" { print $4; exit }')
 cat > /etc/pf.conf << EOF
 nat on $EXT_IF from ${PRIVATE_NET}.0/24 to any -> ($EXT_IF)
 EOF
+DNS_SERVER=$(awk '/^nameserver/{print $2; exit}' /etc/resolv.conf)
+: "${DNS_SERVER:=1.1.1.1}"
+# port=0: DHCP only (avoid clashing with host resolvers on :53)
 cat > /usr/local/etc/dnsmasq.conf << EOF
 interface=nghost0
 bind-interfaces
+except-interface=lo
+port=0
 dhcp-range=${PRIVATE_NET}.100,${PRIVATE_NET}.199,12h
 dhcp-option=option:router,${PRIVATE_NET}.1
-domain-needed
-bogus-priv
+dhcp-option=option:dns-server,${DNS_SERVER}
 EOF
 
 sysrc gateway_enable=YES pf_enable=YES dnsmasq_enable=YES
@@ -88,6 +101,6 @@ ifconfig nghost0 inet "${PRIVATE_NET}.1/24" up
 sysctl net.inet.ip.forwarding=1
 
 service pf start
-service dnsmasq start
+service dnsmasq restart
 
 service jail start
