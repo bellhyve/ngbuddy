@@ -6,15 +6,18 @@
 
 # ngbuddy 1.1
 # 
-# See ngbuddy(8) for configuration details. For manual configuration,
-# add the following to /etc/rc.conf[.local]:
+# See ngbuddy(8) for configuration details. For configuration, use
+# `service ngbuddy enable` or add the following to /etc/rc.conf[.local]:
 #
 # ngbuddy_enable="YES"
 # ngbuddy_BRIDGE_if="IF"
 #	Link a new BRIDGE to interface IF.
 #	If IF does not exist, create an ng_eiface device.
+# 
 # ngbuddy_BRIDGE_list="IF1 IF2 ..."
 #	Create additional ng_eiface devices attached to BRIDGE.
+#
+# See documentation for additional jail and vm-bhyve helpers.
 
 . /etc/rc.subr
 . /etc/network.subr
@@ -44,7 +47,7 @@ load_rc_config "$ngbuddy"
 : ${ngbuddy_share_dir:="/usr/local/share/ngbuddy"}
 
 # Enable Netgraph Buddy and add default bridges if none are defined
-# "public" is associated with the default route, and "private" is given an eiface
+# "public" is associated with the default route, and "private" is a new eiface
 ngbuddy_enable() {
 	sysrc ngbuddy_enable=YES
 	if [ -z "$ngbuddy_bridges" ]
@@ -179,9 +182,8 @@ ngbuddy_unjail() {
 	ngbuddy_shutdown_eiface "$if_name"
 }
 
-# Record an eiface MAC on its bridge hook before VNET handoff.
-# FreeBSD 14 cannot always learn MACs from eifaces moved into VNET jails;
-# pre-seeding keeps unicast return traffic working with uplink-first bridges.
+# Record an eiface MAC on its bridge hook before VNET handoff for
+# FreeBSD 14 bug workaround.
 ngbuddy_bridge_seed_mac() {
 	local bridge="$1" hook="$2" if_name="$3" mac
 	mac="$(ifconfig "$if_name" | awk '/ether / { print $2; exit }')"
@@ -189,7 +191,7 @@ ngbuddy_bridge_seed_mac() {
 	ngctl msg "${bridge}:" movehost "{ addr=${mac} hook=\"${hook}\" }" >/dev/null
 }
 
-# Prefer long-lived L2 entries so pre-seeded jail MACs are not forgotten quickly.
+# Prefer long-lived L2 entries so pre-seeded jail MACs are not (likely) forgotten.
 ngbuddy_bridge_set_staleness() {
 	ngctl msg "$1:" setconfig \
 		"{ debugLevel=1 loopTimeout=60 maxStaleness=65535 minStableAge=1 }" \
@@ -212,22 +214,20 @@ ngbuddy_private() {
 	ifn_start "$if_name"
 }
 
-# Enable a public bridge and attach an existing NIC.
-# Default uplink hooks avoid learning outside-world MACs; set
-# ngbuddy_public_hooks=link for ordinary flooded link0/link1 instead.
+# Enable a public bridge and attach an existing NIC, following the ng_bridge(4) recommendations.
 ngbuddy_public() {
 	bridge=$1
 	eval if_name=\$ngbuddy_${bridge}_if
 	local ng_name lower_hook upper_hook
 	ng_name="$(ngbuddy_ng_name "$if_name")"
 	case "$ngbuddy_public_hooks" in
+		[Uu][Pp][Ll][Ii][Nn][Kk]|'')
+			lower_hook=uplink1
+			upper_hook=link0
+			;;
 		[Ll][Ii][Nn][Kk])
 			lower_hook=link0
 			upper_hook=link1
-			;;
-		[Uu][Pp][Ll][Ii][Nn][Kk]|'')
-			lower_hook=uplink1
-			upper_hook=uplink2
 			;;
 		*)
 			echo "ngbuddy_public_hooks must be link or uplink." >&2
@@ -263,8 +263,7 @@ ngbuddy_bridge() {
 		sysrc ngbuddy_${bridge}_if=${bridgeif}
 	fi
 
-	# If given an existing interface, bridge to it, otherwise
-	# create an eiface
+	# If given an existing interface, bridge to it, otherwise create an eiface
 	eval if_name=\$ngbuddy_${bridge}_if
 	if [ -z "$if_name" ]
 	then
@@ -272,7 +271,7 @@ ngbuddy_bridge() {
 		return 1
 	fi
 	linkmatch=`echo $if_name|tr _ .`
-	if ifconfig -l|grep -qw "$linkmatch"
+	if echo " $(ifconfig -l) " | grep -q " ${linkmatch} "
 	then
 		ngbuddy_public $bridge
 	else

@@ -1,6 +1,6 @@
 % ngbuddy(8) | System Manager's Manual
 % Daniel J. Bell
-% July 12, 2026
+% July 19, 2026
 
 # NAME
 
@@ -31,8 +31,6 @@
 
 **rc.conf** variables prefixed by **ngbuddy_** are used to manage ng_bridge(4) and ng_eiface(4) devices on service start (and system boot). Additional tools assist with jail interface management, configuring vm-bhyve, naming vm-bhyve sockets, displaying basic statistics, and determining stable MAC addresses to help avoid collisions.
 
-When a bridge is attached to an existing network interface (physical NIC or VLAN), **ngbuddy** connects that interface to the bridge with **uplink** hooks by default so the bridge does not learn outside-world MAC addresses. Guest and host eiface nodes use ordinary **link** hooks. When **service ngbuddy jail** or **create** attaches an eiface, **ngbuddy** also installs that interface's MAC on the bridge with **movehost** before any VNET handoff. That keeps unicast return traffic working for VNET jails on FreeBSD versions that cannot reliably learn MACs from moved **ng_eiface**(4) devices. Interface names in **rc.conf** should use the ifconfig(8) form (including dots for VLANs, e.g. **re0.42**); netgraph node names convert dots to underscores automatically.
-
 # QUICK START EXAMPLE
 
 The following commands will configure a system for netgraph.
@@ -44,7 +42,8 @@ The following commands will configure a system for netgraph.
 
 ```sh
 	ngbuddy_enable="YES"
-	ngbuddy_public_if="em0"
+  # Or your physical interfae
+  ngbuddy_public_if="ix0"  
 	ngbuddy_private_if="nghost0"
 ```
 
@@ -76,7 +75,7 @@ Subcommands are called using **service ngbuddy** _SUBCOMMAND_. Note that all com
 :    Print a list of ng_bridge(4) devices, their attached peers, and basic traffic statistics.
 
 **bridge** _bridge_ _interface_
-:    Create a bridge and an associated **rc.conf** entry. If the _interface_ already exists, _bridge_ is attached to it with uplink hooks (and LRO/TSO are disabled on that interface). Otherwise, _interface_ is created as a new eiface node.
+:    Create a bridge and an associated **rc.conf** entry. If the _interface_ already exists, _bridge_ is attached to it, and offloading features are disabled to improve sharing. If the _interface_ does not exist, it is created as a new eiface node, which can be used as a gateway for for the bridge.
 
 **unbridge** _bridge_
 :    Remove the indicated bridge from netgraph and **rc.conf**.
@@ -107,7 +106,7 @@ _ngbuddy_enable_
 :    Set to _YES_ to enable the service.
 
 _ngbuddy\_(_BRIDGE_)\_if_
-:    Associate a new ng_bridge(4) device named _BRIDGE_ with the indicated interface, e.g. _em0_ or _re0.42_. If the interface already exists, attach it to the bridge with uplink hooks and disable LRO/TSO. If the interface does not exist, create it as an ng_eiface(4) device. This variable is set by the **bridge** and **unbridge** subcommands.
+:    Associate a new ng_bridge(4) device named _BRIDGE_ with the indicated interface, e.g. _em0_ or _re0.42_. If the interface already exists, attach it to the bridge (see _ngbuddy_public_hooks_) and disable LRO/TSO. If the interface does not exist, create it as an ng_eiface(4) device. This variable is set by the **bridge** and **unbridge** subcommands.
 
 _ngbuddy\_(_BRIDGE_)\_list_
 :    A space-delimited list of additional ng_eiface(4) devices attached to _BRIDGE_ at startup. This variable is set by the **create** and **destroy** subcommands.
@@ -116,10 +115,10 @@ _ngbuddy_max_retries_
 :    Maximum number of occupied bridge hooks to skip while creating an eiface. The default is **1024**.
 
 _ngbuddy_public_hooks_
-:    Hook style used when attaching an existing NIC or VLAN to a public bridge. The default is **uplink** (**uplink1**/**uplink2**), which avoids learning outside-world MAC addresses. Set to **link** to use ordinary **link0**/**link1** hooks instead (unknown unicast is flooded to every bridge port).
+:    Hook style used when attaching to the _lower_ hook of an existing interface. The default is **uplink**, which is reduces MAC table size.
 
 _ngbuddy_set_mac_
-:    If set to _YES_, eiface hardware addresses are derived from a hash of the interface name so MAC addresses stay stable across hosts. If set to any string other than _YES_, that string is added to the MAC address generator's seed.
+:    If set to _YES_, eiface hardware addresses are derived from a hash of the interface name so MAC addresses stay stable across hosts. If set to any string other than _YES_, that string is added to the MAC address generator's seed. Use the same value on failover hosts to keep interface MAC addresses consistent when migrating.
 
 _ngbuddy_set_mac_prefix_
 :    Override the default MAC address prefix of **58:9C:FC** (the OUI of the FreeBSD Foundation). For example, set _ngbuddy_set_mac_prefix="02"_ to minimize the risk of collisions. _ngbuddy_set_mac_ must also be enabled to use this feature.
@@ -216,8 +215,6 @@ wan
 # NOTES
 
 These scripts were developed to assist with new netgraph features in **vm-bhyve 1.5+**, and were inspired by the **/usr/share/examples/jails/jng** example script and additional examples by Klara Systems.
-
-See ng_bridge(4) for details on **link** and **uplink** hooks. Physical and VLAN uplinks are attached first so unknown unicast frames are forwarded toward the outside network rather than flooded to every guest. Because uplink-first bridges only deliver unknown unicast to uplink hooks, guest MAC entries must exist for return traffic. **ngbuddy** therefore pre-seeds each eiface MAC with **movehost** when the interface is created, which is required for full VNET jail connectivity (static or DHCP) on FreeBSD 14.x.
 
 # SEE ALSO
 
