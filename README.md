@@ -42,8 +42,8 @@ The following commands will configure a system for netgraph.
 
 ```sh
 	ngbuddy_enable="YES"
-  # Or your physical interfae
-  ngbuddy_public_if="ix0"  
+	# Or your physical interface
+	ngbuddy_public_if="ix0"
 	ngbuddy_private_if="nghost0"
 ```
 
@@ -75,7 +75,7 @@ Subcommands are called using **service ngbuddy** _SUBCOMMAND_. Note that all com
 :    Print a list of ng_bridge(4) devices, their attached peers, and basic traffic statistics.
 
 **bridge** _bridge_ _interface_
-:    Create a bridge and an associated **rc.conf** entry. If the _interface_ already exists, _bridge_ is attached to it, and offloading features are disabled to improve sharing. If the _interface_ does not exist, it is created as a new eiface node, which can be used as a gateway for for the bridge.
+:    Create a bridge and an associated **rc.conf** entry. If the _interface_ already exists, _bridge_ is attached to it, and offloading features are disabled to improve sharing. If the _interface_ does not exist, it is created as a new eiface node, which can be used as a gateway for the bridge.
 
 **unbridge** _bridge_
 :    Remove the indicated bridge from netgraph and **rc.conf**.
@@ -137,7 +137,7 @@ _ngbuddy_set_mac_hash_
 :    An alternative to **ngctl dot** that creates a Mermaid-JS color diagram of netgraph nodes.
 
 # EXAMPLES
-For examples and demo scripts, see **examples** at: https://github.com/bellhyve/netgraph-buddy
+For examples and demo scripts, see **examples** at: https://github.com/bellhyve/ngbuddy
 
 **Example 1: Quickly deploy a VNET jail with netgraph using jail.conf.d**
 

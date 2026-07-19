@@ -18,4 +18,4 @@ It is generally a good practice to keep bridge names consistent between failover
 
 **Can this coexist with my if_bridge (epair/tap) setup?**
 
-Yes; an if_bridge interface and eiface (Netgraph interface) can share a network through a bridge, including a physical or private network with DHCP. Try `ifconfig bridge0 addm nghost0` to link your "private" ngup interfaces to your if_bridge epairs/taps/etc. This is handy for an in-place virtual jail migration from epair to netgraph.
+Yes; an if_bridge interface and eiface (Netgraph interface) can share a network through a bridge, including a physical or private network with DHCP. Try `ifconfig bridge0 addm nghost0` to link your private bridge's host interface to your if_bridge epairs/taps/etc. This is handy for an in-place virtual jail migration from epair to netgraph.
