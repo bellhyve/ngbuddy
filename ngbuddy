@@ -101,11 +101,21 @@ ngbuddy_create_eiface() {
 	ngbuddy_linkpp
 	if_name="$1"
 	bridge="${2:-$(echo $ngbuddy_bridges | awk '{print $1}')}"
+	local error
 	if ifconfig "$if_name" > /dev/null 2>&1; then
 		echo "$if_name" already exists.
 		return
 	fi
-	ngctl mkpeer "$bridge:" eiface "link${LNUM}" ether
+	while ! error="$(ngctl mkpeer "$bridge:" eiface "link${LNUM}" ether 2>&1)"
+	do
+		if ngctl show "$bridge:link${LNUM}" > /dev/null 2>&1
+		then
+			LNUM=$((LNUM + 1))
+		else
+			echo "$error" >&2
+			return 1
+		fi
+	done
 	local ng_if="$(ngctl show -n "$bridge:link${LNUM}" |awk '{print $2}')"
 	ngctl name "$ng_if:" "$if_name"
 	ifconfig "$ng_if" name "$if_name" >/dev/null
