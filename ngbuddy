@@ -4,6 +4,8 @@
 # REQUIRE:	netif
 # BEFORE:	routing
 
+# ngbuddy 1.1
+# 
 # See ngbuddy(8) for configuration details. For manual configuration,
 # add the following to /etc/rc.conf[.local]:
 #
