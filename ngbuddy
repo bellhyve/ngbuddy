@@ -59,26 +59,22 @@ ngbuddy_ng_name() {
 	echo "$1" | tr . _
 }
 
-# Set LNUM to next available linkN (uplink hooks are tracked separately).
-# Also sets NGHOOKS to total link* + uplink* count for start-time guards.
+# Load netgraph and count existing bridge hooks for the start-time guard.
+ngbuddy_init() {
+	kldload -nq ng_ether ng_bridge
+	NGHOOKS=$(ngctl list -l 2>/dev/null | awk \
+		'$1 ~ /^(up)?link[0-9]+$/ { hooks++ } END { print hooks + 0 }')
+}
+
+# Set LNUM to the next available ordinary link on a specific bridge.
 ngbuddy_linkpp() {
-	if [ -n "$LNUM" ]
-	then
-		LNUM=$((LNUM + 1))
-	else
-		kldload -nq ng_ether ng_bridge
-		eval "$(ngctl list -l 2>/dev/null | awk '
-			$1 ~ /^link[0-9]+$/ {
-				n = int(substr($1, 5))
-				if (n >= nextlink) nextlink = n + 1
-				hooks++
-			}
-			$1 ~ /^uplink[0-9]+$/ { hooks++ }
-			END {
-				print "LNUM=" (nextlink + 0)
-				print "NGHOOKS=" (hooks + 0)
-			}')"
-	fi
+	kldload -nq ng_ether ng_bridge
+	LNUM=$(ngctl show "$1:" 2>/dev/null | awk '
+		$1 ~ /^link[0-9]+$/ {
+			n = int(substr($1, 5))
+			if (n >= nextlink) nextlink = n + 1
+		}
+		END { print nextlink + 0 }')
 }
 
 # Set a MAC address
@@ -99,9 +95,9 @@ ngbuddy_ifconfig_ether() {
 
 # Attach a new eiface to a bridge
 ngbuddy_create_eiface() {
-	ngbuddy_linkpp
 	if_name="$1"
 	bridge="${2:-$(echo $ngbuddy_bridges | awk '{print $1}')}"
+	ngbuddy_linkpp "$bridge"
 	local error retries=0
 	if ifconfig "$if_name" > /dev/null 2>&1; then
 		echo "$if_name" already exists.
@@ -212,7 +208,7 @@ ngbuddy_public() {
 ngbuddy_bridge() {
 	bridge=$1
 	bridgeif=$2
-	ngbuddy_linkpp
+	ngbuddy_linkpp "$bridge"
 
 	# Check for bridge name conflicts
 	brmatch=`echo $bridge|tr _ .`
@@ -288,8 +284,7 @@ ngbuddy_shutdown_bridge() {
 
 # Create nodes and ifaces defined in rc.conf
 ngbuddy_start() {
-	ngbuddy_linkpp
-	local bridge_count
+	ngbuddy_init
 	echo Starting $name.
 	if [ "${NGHOOKS:-0}" -gt 0 ]
 	then
@@ -298,9 +293,7 @@ ngbuddy_start() {
 	fi
 	for bridge in $ngbuddy_bridges
 	do
-		[ -n "$bridge_count" ] && ngbuddy_linkpp
 		ngbuddy_bridge $bridge
-		bridge_count=$(($bridge_count + 1))
 	done
 	local created
 	created=$(ngctl list -l | awk '$1 ~ /^(up)?link[0-9]+$/ { n++ } END { print n+0 }')
