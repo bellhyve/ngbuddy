@@ -38,6 +38,7 @@ extra_commands="bridge create destroy jail unbridge unjail vmconf vmname"
 load_rc_config "$ngbuddy"
 : ${ngbuddy_bridges:="`list_vars 'ngbuddy_*_if'|sed -E 's/^ngbuddy_|_if$//g'|xargs`"}
 : ${ngbuddy_max_retries:=1024}
+: ${ngbuddy_public_hooks:=uplink}
 : ${ngbuddy_share_dir:="/usr/local/share/ngbuddy"}
 
 # Enable Netgraph Buddy and add default bridges if none are defined
@@ -123,6 +124,7 @@ ngbuddy_create_eiface() {
 	ngctl name "$ng_if:" "$if_name"
 	ifconfig "$ng_if" name "$if_name" >/dev/null
 	ngbuddy_ifconfig_ether
+	ngbuddy_bridge_seed_mac "$bridge" "link${LNUM}" "$if_name"
 	ifn_start "$if_name"
 }
 
@@ -175,6 +177,23 @@ ngbuddy_unjail() {
 	ngbuddy_shutdown_eiface "$if_name"
 }
 
+# Record an eiface MAC on its bridge hook before VNET handoff.
+# FreeBSD 14 cannot always learn MACs from eifaces moved into VNET jails;
+# pre-seeding keeps unicast return traffic working with uplink-first bridges.
+ngbuddy_bridge_seed_mac() {
+	local bridge="$1" hook="$2" if_name="$3" mac
+	mac="$(ifconfig "$if_name" | awk '/ether / { print $2; exit }')"
+	[ -n "$mac" ] || return 0
+	ngctl msg "${bridge}:" movehost "{ addr=${mac} hook=\"${hook}\" }" >/dev/null
+}
+
+# Prefer long-lived L2 entries so pre-seeded jail MACs are not forgotten quickly.
+ngbuddy_bridge_set_staleness() {
+	ngctl msg "$1:" setconfig \
+		"{ debugLevel=1 loopTimeout=60 maxStaleness=65535 minStableAge=1 }" \
+		>/dev/null
+}
+
 # Enable a private bridge and attach a new eiface.
 ngbuddy_private() {
 	bridge=$1
@@ -186,22 +205,39 @@ ngbuddy_private() {
 	ngbuddy_ifconfig_ether
 	ngctl mkpeer $if_name: bridge ether link${LNUM}
 	ngctl name $if_name:ether $bridge
+	ngbuddy_bridge_set_staleness "$bridge"
+	ngbuddy_bridge_seed_mac "$bridge" "link${LNUM}" "$if_name"
 	ifn_start "$if_name"
 }
 
 # Enable a public bridge and attach an existing NIC.
-# Use uplink hooks so the bridge does not learn outside-world MACs.
-# Hook name "uplink" auto-assigns uplink1, uplink2, ... (uplink0 is invalid).
+# Default uplink hooks avoid learning outside-world MACs; set
+# ngbuddy_public_hooks=link for ordinary flooded link0/link1 instead.
 ngbuddy_public() {
 	bridge=$1
 	eval if_name=\$ngbuddy_${bridge}_if
-	local ng_name
+	local ng_name lower_hook upper_hook
 	ng_name="$(ngbuddy_ng_name "$if_name")"
+	case "$ngbuddy_public_hooks" in
+		[Ll][Ii][Nn][Kk])
+			lower_hook=link0
+			upper_hook=link1
+			;;
+		[Uu][Pp][Ll][Ii][Nn][Kk]|'')
+			lower_hook=uplink1
+			upper_hook=uplink2
+			;;
+		*)
+			echo "ngbuddy_public_hooks must be link or uplink." >&2
+			return 1
+			;;
+	esac
 	ngctl msg $ng_name: setpromisc 1
 	ngctl msg $ng_name: setautosrc 0
-	ngctl mkpeer $ng_name: bridge lower uplink
+	ngctl mkpeer $ng_name: bridge lower $lower_hook
 	ngctl name  $ng_name:lower $bridge
-	ngctl connect $ng_name: $bridge: upper uplink
+	ngctl connect $ng_name: $bridge: upper $upper_hook
+	ngbuddy_bridge_set_staleness "$bridge"
 	ifconfig $if_name lro -tso4 -tso6 -vlanhwfilter -vlanhwtso
 }
 

@@ -36,7 +36,7 @@ BEGIN {
 			else if ($5=="lower") { $2 = $2" (lower)" }
 			link_name = $2
 			delete stats
-			statcmd = "ngctl msg "bridge_name": getstats "link_num
+			statcmd = "ngctl msg "bridge_name": getstats \""link_num"\""
 			statcmd|getline
 			statcmd|getline
 			close(statcmd)
