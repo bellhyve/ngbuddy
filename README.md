@@ -112,6 +112,9 @@ _ngbuddy\_(_BRIDGE_)\_if_
 _ngbuddy\_(_BRIDGE_)\_list_
 :    A space-delimited list of additional ng_eiface(4) devices attached to _BRIDGE_ at startup. This variable is set by the **create** and **destroy** subcommands.
 
+_ngbuddy_max_retries_
+:    Maximum number of occupied bridge hooks to skip while creating an eiface. The default is **1024**.
+
 _ngbuddy_set_mac_
 :    If set to _YES_, eiface hardware addresses are derived from a hash of the interface name so MAC addresses stay stable across hosts. If set to any string other than _YES_, that string is added to the MAC address generator's seed.
 

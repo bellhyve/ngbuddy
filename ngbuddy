@@ -37,6 +37,7 @@ extra_commands="bridge create destroy jail unbridge unjail vmconf vmname"
 
 load_rc_config "$ngbuddy"
 : ${ngbuddy_bridges:="`list_vars 'ngbuddy_*_if'|sed -E 's/^ngbuddy_|_if$//g'|xargs`"}
+: ${ngbuddy_max_retries:=1024}
 : ${ngbuddy_share_dir:="/usr/local/share/ngbuddy"}
 
 # Enable Netgraph Buddy and add default bridges if none are defined
@@ -66,7 +67,7 @@ ngbuddy_linkpp() {
 		LNUM=$((LNUM + 1))
 	else
 		kldload -nq ng_ether ng_bridge
-		eval "$(ngctl list -l | awk '
+		eval "$(ngctl list -l 2>/dev/null | awk '
 			$1 ~ /^link[0-9]+$/ {
 				n = int(substr($1, 5))
 				if (n >= nextlink) nextlink = n + 1
@@ -101,7 +102,7 @@ ngbuddy_create_eiface() {
 	ngbuddy_linkpp
 	if_name="$1"
 	bridge="${2:-$(echo $ngbuddy_bridges | awk '{print $1}')}"
-	local error
+	local error retries=0
 	if ifconfig "$if_name" > /dev/null 2>&1; then
 		echo "$if_name" already exists.
 		return
@@ -110,6 +111,12 @@ ngbuddy_create_eiface() {
 	do
 		if ngctl show "$bridge:link${LNUM}" > /dev/null 2>&1
 		then
+			retries=$((retries + 1))
+			if [ "$retries" -gt "$ngbuddy_max_retries" ]
+			then
+				echo "Unable to claim a link on $bridge after $ngbuddy_max_retries retries." >&2
+				return 1
+			fi
 			LNUM=$((LNUM + 1))
 		else
 			echo "$error" >&2
