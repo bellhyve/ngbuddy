@@ -5,7 +5,7 @@
 # BEFORE:	routing
 
 # ngbuddy 1.1
-# 
+#
 # See ngbuddy(8) for configuration details. For configuration, use
 # `service ngbuddy enable` or add the following to /etc/rc.conf[.local]:
 #
@@ -13,7 +13,7 @@
 # ngbuddy_BRIDGE_if="IF"
 #	Link a new BRIDGE to interface IF.
 #	If IF does not exist, create an ng_eiface device.
-# 
+#
 # ngbuddy_BRIDGE_list="IF1 IF2 ..."
 #	Create additional ng_eiface devices attached to BRIDGE.
 #
@@ -217,7 +217,7 @@ ngbuddy_private() {
 # Enable a public bridge and attach an existing NIC, following the ng_bridge(4) recommendations.
 ngbuddy_public() {
 	bridge=$1
-	eval if_name=\$ngbuddy_${bridge}_if
+	if_name=$2
 	local ng_name lower_hook upper_hook
 	ng_name="$(ngbuddy_ng_name "$if_name")"
 	case "$ngbuddy_public_hooks" in
@@ -270,12 +270,16 @@ ngbuddy_bridge() {
 		echo No interface given for bridge $bridge.
 		return 1
 	fi
-	linkmatch=`echo $if_name|tr _ .`
-	if echo " $(ifconfig -l) " | grep -q " ${linkmatch} "
+	linkmatch="$if_name"
+	if ! ifconfig "$linkmatch" > /dev/null 2>&1
 	then
-		ngbuddy_public $bridge
+		linkmatch=`echo "$if_name"|tr _ .`
+	fi
+	if ifconfig "$linkmatch" > /dev/null 2>&1
+	then
+		ngbuddy_public "$bridge" "$linkmatch" || return 1
 	else
-		ngbuddy_private $bridge
+		ngbuddy_private "$bridge"
 	fi
 	eval linklist=\"\$ngbuddy_${bridge}_list\"
 	[ -z "$linklist" ] && return
@@ -283,7 +287,7 @@ ngbuddy_bridge() {
 	for newif in $linklist
 	do
 		echo -n " $newif"
-		ngbuddy_create_eiface $newif $bridge
+		ngbuddy_create_eiface "$newif" "$bridge"
 	done
 	echo
 }
@@ -330,7 +334,7 @@ ngbuddy_start() {
 	fi
 	for bridge in $ngbuddy_bridges
 	do
-		ngbuddy_bridge $bridge
+		ngbuddy_bridge "$bridge" || return 1
 	done
 	local created
 	created=$(ngctl list -l | awk '$1 ~ /^(up)?link[0-9]+$/ { n++ } END { print n+0 }')

@@ -115,7 +115,7 @@ _ngbuddy_max_retries_
 :    Maximum number of occupied bridge hooks to skip while creating an eiface. The default is **1024**.
 
 _ngbuddy_public_hooks_
-:    Hook style used when attaching to the _lower_ hook of an existing interface. The default is **uplink**, which is reduces MAC table size.
+:    Hook style used when attaching to the _lower_ hook of an existing interface. The default is **uplink**, which reduces MAC table size.
 
 _ngbuddy_set_mac_
 :    If set to _YES_, eiface hardware addresses are derived from a hash of the interface name so MAC addresses stay stable across hosts. If set to any string other than _YES_, that string is added to the MAC address generator's seed. Use the same value on failover hosts to keep interface MAC addresses consistent when migrating.
@@ -181,7 +181,7 @@ ngbuddy_set_mac_prefix="02"
 ngbuddy_set_mac_hash="sha256"
 ```
 
-VLAN interfaces work the same way; use the ifconfig name with a dot:
+VLAN interfaces work the same way; use the ifconfig name with a dot. The corresponding ngctl name with an underscore is also accepted:
 
 ```sh
 ngbuddy_public_if="re0.42"

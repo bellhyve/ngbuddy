@@ -1,7 +1,7 @@
 #!/usr/bin/awk -f
 # Draw a Mermaid graph of bridges & instance interfaces. Developed for hosts
-# using vm-bhyve 1.5, and Netgraph interface nodes. Needs ng-buddy's vmname()
-# function name bhyve sockets.
+# using vm-bhyve 1.5 and Netgraph interface nodes. Needs ngbuddy's vmname()
+# function to name bhyve sockets.
 
 # This can probably be simplified in-awk with [^patterns]
 function is_member(list, item) {
@@ -34,7 +34,7 @@ function get_jail_links() {
 }
 
 function get_ng_links() {
-	# Step through the netgraph list to find bridges and decuce which links
+	# Step through the netgraph list to find bridges and deduce which links
 	# are buried in vnet.
 	"ifconfig -lu"|getline host_up_ifs
 	"ifconfig -l"|getline host_ifs

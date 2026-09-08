@@ -193,7 +193,7 @@ The default is \f[B]1024\f[R].
 \f[I]ngbuddy_public_hooks\f[R]
 Hook style used when attaching to the \f[I]lower\f[R] hook of an
 existing interface.
-The default is \f[B]uplink\f[R], which is reduces MAC table size.
+The default is \f[B]uplink\f[R], which reduces MAC table size.
 .TP
 \f[I]ngbuddy_set_mac\f[R]
 If set to \f[I]YES\f[R], eiface hardware addresses are derived from a
@@ -333,7 +333,8 @@ ngbuddy_set_mac_prefix=\(dq02\(dq
 ngbuddy_set_mac_hash=\(dqsha256\(dq
 .EE
 .PP
-VLAN interfaces work the same way; use the ifconfig name with a dot:
+VLAN interfaces work the same way; use the ifconfig name with a dot.
+The corresponding ngctl name with an underscore is also accepted:
 .IP
 .EX
 ngbuddy_public_if=\(dqre0.42\(dq
