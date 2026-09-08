@@ -240,7 +240,7 @@ ngbuddy_public() {
 	ngctl name  $ng_name:lower $bridge
 	ngctl connect $ng_name: $bridge: upper $upper_hook
 	ngbuddy_bridge_set_staleness "$bridge"
-	ifconfig $if_name lro -tso4 -tso6 -vlanhwfilter -vlanhwtso
+	ifconfig $if_name -lro -tso
 }
 
 ngbuddy_bridge() {
